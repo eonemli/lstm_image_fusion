@@ -1,0 +1,104 @@
+# ==============================================================================
+# GLOBAL HARDWARE & MICROSCOPY VOLUME STRUCTURE
+# ==============================================================================
+structure:
+  # General list of acquisition folders (handles powers or power+exposure permutations)
+  ACQUISITION_MODES: 
+    - "power3_exp50"
+    - "power15_exp50"
+    # - "power3_exp10"
+    # - "power3_exp100"
+  CHANNEL: "640nm"
+  TILES: "auto" # Processes recursively or parses an explicit list of subfolders
+
+# ==============================================================================
+# STEP 01: PREPROCESSING (PERCENTILE CLIP & CONTRAST SCALE)
+# ==============================================================================
+code_01_preprocessing:
+  enabled: true # Set to false to bypass clipping and cleanly pass raw files downstream
+  
+  input_dir: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
+  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+  
+  # Background Management
+  # If maximum pixel intensity is below this, copy file directly without processing
+  min_signal_threshold: 1
+  
+  mode: "percentile" # Alternative: "fixed_limit"
+  percentile_params:
+    p_low: 0.1
+    p_high: 99.9
+    stride: 4
+  dataloader:
+    batch_size: 32
+    num_workers: 16
+
+
+# ==============================================================================
+# STEP 02: HDPR IMAGE-LEVEL PIXEL FUSION (EARLY FUSION)
+# ==============================================================================
+code_02_fusion:
+  enabled: true       # Set to false to bypass the fusion pipeline step
+  
+  input_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+  
+  # Background Optimization Management
+  min_signal_threshold: 1
+  
+  # Pipeline Customization Flags
+  contrast_stretching: false # Requirement 1: Set to true to enable min-max normalization. Set false for Tile-to-Tile Radiometric Consistency)
+  
+  weights:
+    contrast: 1.0     # High priority: preserves sharp edge details
+    saturation: 0.9   # Lowered: avoids emphasizing clipped electronic noise floor
+    exposure: 0.1     # Smooths intensity boundaries between exposure gradients
+    
+  num_cores: 32       # CPU worker pools allocated for cluster processing
+
+
+
+# ==============================================================================
+# STEP 03: ON-THE-FLY YOLO INFERENCE & LATE FUSION PIPELINE
+# ==============================================================================
+code_03_inference:
+  paths:
+    # Explicit custom execution paths
+    model_path: "/share/lsmsmart/eonemli/yolo/ultralytics/pretrained_models/fengyi_3_brain_one_ch/single_ch_model_weights/weights/best.pt"
+    model_root: "/share/lsmsmart/eonemli/yolo" # Explicitly sets the Ultralytics module root folder
+    
+    output_txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_4_YOLO_outputs/sample3_txts"
+    output_grid_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_4_YOLO_outputs/sample3_grids"
+
+    # Raw Acquisition Datasets (Active Control Branch)
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch3/sample1_sox9"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_2_raw_HDPR"
+    
+    # Preprocessed Datasets (Optional Control Branch)
+    # Note: If "STRETCHED" is removed from process_branches below, these two paths can be entirely commented out
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_3_clipped_HDPR"
+
+  yolo:
+    classes: 
+      0: "neuron"
+      1: "glia"
+    color_mode: "gray"    
+    conf_thresh: 0.40
+    nms_iou_tiles: 0.25   
+    nms_iou_fusion: 0.45  
+    tile_size: 640
+    step: 544             
+
+  system:
+    num_cores: 16         
+    num_gpus: 1           
+    batch_size: 16        
+    generate_grids: false 
+    min_signal_threshold: 1
+    
+    # Dynamic Branch Allocation: Choice of controls to compute ["RAW", "STRETCHED"]. Change to just ["RAW"] to completely ignore stretched assets.
+    process_branches: ["RAW"]
+    resume: true
+
+
