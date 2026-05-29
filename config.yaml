@@ -11,27 +11,30 @@ structure:
   CHANNEL: "640nm"
   TILES: "auto" # Processes recursively or parses an explicit list of subfolders
 
+
 # ==============================================================================
-# STEP 01: PREPROCESSING (PERCENTILE CLIP & CONTRAST SCALE)
+# STEP 01: PREPROCESSING - INTENSITY CLIPPING & PERCENTILE SCALING
 # ==============================================================================
 code_01_preprocessing:
-  enabled: true # Set to false to bypass clipping and cleanly pass raw files downstream
+  enabled: true       # Set to false to bypass and directly copy files to output_dir
   
   input_dir: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
   output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
   
-  # Background Management
-  # If maximum pixel intensity is below this, copy file directly without processing
-  min_signal_threshold: 1
+  mode: "percentile"  # Options: "percentile" or "clip"
+  min_signal_threshold: 1 # Threshold to isolate empty padding/background frames
   
-  mode: "percentile" # Alternative: "fixed_limit"
   percentile_params:
-    p_low: 0.1
-    p_high: 99.9
-    stride: 4
+    stride: 8         # Spatial downsampling stride to conserve GPU memory/VRAM
+    p_low: 1.0        # Lower percentile anchor for contrast clipping min bound
+    p_high: 99.0      # Upper percentile anchor for contrast clipping max bound
+    
+  limit_params:
+    clip_limit: 3000  # Used only if mode is set to "clip"
+    
   dataloader:
-    batch_size: 32
-    num_workers: 16
+    batch_size: 16    # Quantity of frames streamed to the compute unit simultaneously
+    num_workers: 8    # Parallel CPU workers assigned to background file loading
 
 
 # ==============================================================================
@@ -59,7 +62,31 @@ code_02_fusion:
 
 
 # ==============================================================================
-# STEP 03: ON-THE-FLY YOLO INFERENCE & LATE FUSION PIPELINE
+# STEP 03: PREPROCESSING - GLOBAL STITCHED MACRO-VOLUME HDPR FUSION
+# ==============================================================================
+code_03_stitched_fusion:
+  enabled: true       # Set to false to bypass this stitched macro-blending step
+  
+  # Map your custom acquisition mode labels directly to their massive stitched TIFF file paths.
+  # This dynamic grid cleanly handles 2, 3, or any arbitrary number of input power/exposure layers.
+  input_paths:
+    "640_3": "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5_stitched/640_3/RES(8050x7990x491)/426970/426970_283730/426970_283730_306300.tif"
+    "640_15": "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5_stitched/640_15/RES(8050x7990x491)/426970/426970_283730/426970_283730_306300.tif"
+    # You can seamlessly append additional files as needed:
+    # "640_20": "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5_stitched/640_20/..."
+
+  # Destination directory for the fused high-resolution stitched TIFFs and frequency plots
+  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_stitched"
+
+  parameters:
+    fused_label: "640_HDPR"    # Output label filename prefix for the combined image matrix
+    histogram_dpi: 300
+    histogram_bins: 256
+
+
+
+# ==============================================================================
+# STEP 03 2: ON-THE-FLY YOLO INFERENCE & LATE FUSION PIPELINE
 # ==============================================================================
 code_03_inference:
   paths:
@@ -101,4 +128,206 @@ code_03_inference:
     process_branches: ["RAW"]
     resume: true
 
+
+
+# ==============================================================================
+# STEP 04: POST-PROCESSING SLICE-LEVEL METADATA LEDGER
+# ==============================================================================
+code_04_analytics:
+  enabled: true       # Set to false to bypass this ledger compilation step
+  
+  paths:
+    # Source directory where YOLO prediction labels (.txt) are exported
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    # Destination folder for the compiled text ledger
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_analytics"
+    
+  classes:
+    0: "Neuron"
+    1: "Glia"
+
+  system:
+    num_cores: 16       # Concurrent CPU workers assigned to batch parsing
+
+
+
+# ==============================================================================
+# STEP 05: POST-PROCESSING VISUAL COMPARISON GRID GENERATION
+# ==============================================================================
+code_05_grid_generation:
+  enabled: true       # Set to false to completely bypass figure compilation steps
+  
+  paths:
+    # Source paths for raw data domains
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+
+    # Input text files containing box locations and slice classifications
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    ledger_path: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_analytics/01_slice_level_comparison.txt"
+
+    # Output directory for categorical panels folders
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_grid_figs"
+      
+  parameters:
+    target_samples_per_category: 10   # Quantity of multi-panel grids to generate per subset folder
+    random_seed: 42                   # Seed key to maintain strict scientific sample reproducibility
+    
+    # Unbiased Benchmarking Option
+    generate_unbiased_random: true    # Generates a 5th control folder using true random uniform sampling
+
+
+
+# ==============================================================================
+# STEP 06: POST-PROCESSING AUTOMATED SATURATION OUTLIER MINER
+# ==============================================================================
+code_06_saturation_finder:
+  enabled: true       # Set to false to bypass this mining pipeline step
+  
+  paths:
+    # Target output folder where saturated image subsets are grouped
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_high"
+    
+    # Active baseline input paths vectors
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
+    
+    # Optional input paths vectors (Can be entirely commented out if not utilized)
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+
+  parameters:
+    saturation_threshold: 65000  # 16-bit intensity marker above which a pixel is considered saturated
+    search_pool_size: 10000       # Size of random Z-slice population pool to evaluate
+    target_count: 50             # Absolute limit of top-saturated slices to extract
+    max_per_tile: 5              # Localized safety limit to prevent pulling all frames from one single tile
+    random_seed: 42              # Seed key to maintain strict scientific sample reproducibility
+
+
+
+# ==============================================================================
+# STEP 07: SATURATED IMAGES VISUAL COMPARISON GRID GENERATION (POST-PROCESSING OVEREXPOSURE MULTI-PANEL)
+# ==============================================================================
+code_07_saturated_comparisons:
+  enabled: true       # Set to false to completely bypass figure generation
+  
+  paths:
+    # Source directory containing extracted overexposed subsets (Output from step 06)
+    saturated_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_high"
+    # Root folder containing YOLO predictions (.txt)
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    # Destination directory for the generated publication-ready grids
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_figs"
+
+  parameters:
+    dpi: 150            # Resolution scale for output comparison matrices
+
+
+
+
+# ==============================================================================
+# STEP 08: POST-PROCESSING - TARGETED OPTICAL SLICE DASHBOARD GENERATOR
+# ==============================================================================
+code_08_specific_slice:
+  enabled: true       # Set to false to completely bypass figure extraction
+  
+  paths:
+    # Source image root locations for raw tracking
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_2_raw_HDPR"
+    
+    # Optional image root locations for preprocessed tracking (Can be commented out if unused)
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_3_clipped_HDPR"
+
+    # Input predictions path root folder containing YOLO .txt files
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_4_YOLO_outputs/sample4_txts"
+    # Target directory for the compiled diagnostic figure panels
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_4_YOLO_outputs/sample4_specific_figs"
+
+  parameters:
+    # An array list of complete coordinate string identifiers of specific Z-slices to inspect.
+    # The framework will automatically deduce distinct X_Folder and parent Tile directories for each item.
+    target_z_slices:
+      - "451400_306700_323420"
+      - "451400_306700_323440"
+    
+    # Select which dataset types to process. Options: "RAW", "STRETCHED", or "BOTH"
+    dataset_type: "BOTH"                   
+    dpi: 150                                # Image resolution scale for target exports
+
+
+
+# ==============================================================================
+# STEP 09: POST-PROCESSING - VALIDATION COHORT EXTRACTION ENGINE
+# ==============================================================================
+code_09_validation_extraction:
+  enabled: true       # Set to false to completely bypass validation dataset extraction
+  
+  paths:
+    # Root folder containing YOLO predictions (.txt)
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    # Destination directory where self-contained validation sandboxes are grouped
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+    
+    # Active baseline input paths vectors
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
+    
+    # Optional input paths vectors (Will be bypassed gracefully if left blank or missing)
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+
+  parameters:
+    dataset_type: "RAW"              # Dataset branch to scan and extract. Options: "RAW" or "STRETCHED"
+    selection_method: "HDPR_Late"    # The pipeline tracking modality used to evaluate cell/tissue density
+    min_detected_cells: 30           # Lower cell count cutoff to filter out empty background frames
+    total_slices_to_select: 50       # Total number of unbiased random slices to extract for validation
+    random_seed: 42                  # Seed key to guarantee strict statistical cohort reproducibility
+    generate_annotated_grids: true   # Set to true to automatically render publication-ready reference panels
+    dpi: 150                         # Image resolution scale for target exports
+
+
+
+
+# ==============================================================================
+# STEP 10: POST-PROCESSING - GROUND TRUTH MULTI-EXPOSURE LABEL FUSION
+# ==============================================================================
+code_10_gt_label_fusion:
+  enabled: true       # Set to false to bypass human ground-truth consensus building
+  
+  paths:
+    # Points directly to the validation sandbox directory generated in Step 09
+    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+
+  parameters:
+    gt_folder_name: "labels_gt"     # Name of the target subfolder containing human annotations
+    nms_iou_threshold: 0.45         # Intersection-over-Union limit to collapse duplicate human entries
+
+
+
+
+# ==============================================================================
+# POST-PROCESSING VALIDATION SUITE (STEPS 11, 12, 13)
+# ==============================================================================
+evaluation_suite:
+  paths:
+    # Points to the validation sandboxes populated in step 09
+    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+    # Destination directory for all evaluation reports, matrices, and scatter plots
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_evaluation_results"
+
+  structure:
+    gt_folder_name: "labels_gt"     # Folder containing human consensus ground-truth
+    gt_file_name: "HDPR_Late.txt"   # Consensus ground-truth file name (Output of step 10)
+
+  parameters:
+    iou_threshold: 0.45             # Spatial matching overlap barrier criteria
+    dpi: 300                        # Publication high-resolution plot asset scale
+    font_scale: 1.2                 # Global scale multiplier for figure labels
+    top_k_limit: 10                 # Total slices to pull for golden subset evaluations
+    ranking_method: "HDPR_Late"     # Anchor method to score golden subset pool
+    ranking_class: "Neuron"         # Target class or "Average" for golden filtering
 
