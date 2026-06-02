@@ -1,10 +1,3 @@
-When you are using an interactive chat interface like this, the system automatically translates any raw Markdown syntax it receives and renders it into a clean, visual format (with bold headers, styled bullet points, and boxed code blocks) for human readability.
-
-Because I want to give you a single, unified text block that you can copy without any of this automatic rendering getting in the way, I am going to use an escape trick: I am wrapping the entire text inside a raw text block.
-
-When you look at the block below, click the **"Copy"** button in the top corner of the box. It will capture the clean, unrendered plain text code perfectly so you can paste it directly into your GitHub `README.md` editor window.
-
-```text
 # High Dynamic Range Power (HDPR) Light-Sheet Microscopy Post-Processing Pipeline
 
 An enterprise-grade, high-performance computing (HPC) computational suite engineered to automate multi-exposure pixel fusion, deep learning cell mapping (YOLOv8), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
