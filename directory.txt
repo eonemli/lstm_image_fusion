@@ -1,20 +1,24 @@
-my-hdpr-lsfm-repo/
+lstm_image_fusion/
 │
-├── config.yaml                     # Single master configuration for all steps
-├── README.md                       # Main documentation and execution guide
-├── requirements.txt                # Python dependencies (torch, tifffile, cv2, etc.)
+├── config.yaml                     # Single master workspace configuration for all steps
+├── directory.txt                   # Central repository structural documentation layout
 │
 ├── 01_preprocessing/
-│   ├── 01_preprocess_clip_scale.py
-│   └── 02_hdpr_pixel_fusion.py
+│   ├── 01_preprocess_clip_scale.py # Multi-channel percentile clipping & 16-to-8-bit scaling
+│   ├── 02_hdpr_pixel_fusion.py     # Multi-power exposure alignment & HDR fusion engine
+│   └── 03_hdpr_stitched_fusion.py  # Spatial tile stitching matrix compiler for fused ranges
 │
 ├── 02_yolo_inference/
-│   ├── 03_prepare_yolo_dataset.py  # Dynamically patches/tiles images for YOLO
-│   └── 04_run_yolo_inference.py    # Generates the raw prediction .txt files
+│   └── 03_yolo_hdpr_inference.py   # Multi-track YOLO deep learning batch prediction pipeline
 │
 └── 03_postprocessing/
-    ├── 05_evaluate_metrics.py      # Standard multi-matrix panel generator (Code 10)
-    ├── 06_fusion_redundancy.py     # Anchor comparison script (Code 13)
-    └── 07_golden_subset.py         # Outlier isolation script (Code 14)
-
-    
+    ├── 04_compile_slice_ledger.py  # Master database indexer tracking raw box variance
+    ├── 05_generate_grid_figures.py # Curated 2xN comparative evaluation panel generator
+    ├── 06_find_saturated_images.py # Parallel overexposure matrix miner & validation extractor
+    ├── 07_generate_saturated_plots.py # Publication-ready dashboard for overexposed outliers
+    ├── 08_generate_specific_slice_grid.py # Targeted multi-slice coordinate dashboard generator
+    ├── 09_extract_val_set.py       # Unbiased validation cohort sampler & sandbox builder
+    ├── 10_fuse_gt_labels.py        # Multi-expert consensus ground truth label fusion resolver
+    ├── 11_evaluate_spatial_detection.py # Micro/Macro F1 stats & 1xN combined confusion matrix plot
+    ├── 12_evaluate_population_counting.py # Population density regression tracker & summary table image
+    └── 13_evaluate_golden_subset.py # Top-K peak performance golden cohort miner & visual profiler
