@@ -1,6 +1,6 @@
 # High Dynamic Range Power (HDPR) Light-Sheet Microscopy Post-Processing Pipeline
 
-An enterprise-grade, high-performance computing (HPC) computational suite engineered to automate multi-exposure pixel fusion, deep learning cell mapping (YOLOv8), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
+An enterprise-grade, high-performance computing (HPC) computational suite engineered to automate multi-exposure pixel fusion, deep learning cell mapping (YOLO), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
 
 ---
 
@@ -100,7 +100,7 @@ where $\tau$ is the strict saturation threshold (typically between $62000$ and $
 
 ## 2.3 Deep Learning Inference Windowing
 
-The object detection pipeline uses a customized YOLOv8 architecture optimized for multi-class cellular object recognition (Class 0: **Neuron**, Class 1: **Glia**).
+The object detection pipeline uses a customized YOLO architecture optimized for multi-class cellular object recognition (Class 0: **Neuron**, Class 1: **Glia**).
 
 Because convolutional neural network native layers process 8-bit inputs ($[0, 255]$), 16-bit volumetric arrays must undergo dynamic range compression before inference. Instead of a naive global normalization that clips fine intensity changes, the pipeline applies an adaptive min-max normalization targeted to a rolling $k$-th percentile window of the non-zero background array:
 
@@ -237,7 +237,7 @@ Whole-organ stitched macroscopic image volumes.
 
 ### Purpose
 
-Runs multi-track YOLOv8 deep learning batch inference on raw and fused image arrays.
+Runs multi-track YOLO deep learning batch inference on raw and fused image arrays.
 
 ### Input Structure
 
@@ -698,7 +698,7 @@ This integrated pipeline provides an automated, end-to-end framework for:
 
 * Multi-exposure 16-bit linear HDPR image fusion.
 * Adaptive percentile-driven 8-bit dynamic range windowing.
-* YOLOv8-based multi-class neuron and glia whole-brain cell mapping.
+* YOLO-based multi-class neuron and glia whole-brain cell mapping.
 * Graph-theoretic multi-expert consensus ground-truth label generation.
 * Rigorous micro/macro spatial validation and population counting regression benchmarking.
 * Robust, unbuffered telemetry logging optimized for large-scale HPC cluster deployments.
