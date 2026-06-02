@@ -1,6 +1,6 @@
 # High Dynamic Range Power (HDPR) Light-Sheet Microscopy Post-Processing Pipeline
 
-An enterprise-grade, high-performance computing (HPC) computational suite engineered to automate multi-exposure pixel fusion, deep learning cell mapping (YOLO), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
+Automate multi-exposure pixel fusion, deep learning cell mapping (YOLO), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
 
 ---
 
