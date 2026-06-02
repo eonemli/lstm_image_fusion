@@ -44,7 +44,7 @@ STRUCT = GLOBAL_CFG['structure']
 def parse_boxes(txt_path: Path, img_w: int, img_h: int) -> List[Tuple[float, float, float, float, int]]:
     """Reads YOLO text file and converts relative coordinates to absolute pixel boxes."""
     boxes = []
-    if not txt_path or not txt_path.exists():
+    if not txt_path or not txt_path.exists() or txt_path.is_dir():
         return boxes
     with open(txt_path, 'r') as f:
         for line in f:
@@ -85,12 +85,29 @@ def draw_figure(x_folder: str, tile: str, z_slice: str, dataset_type: str, out_f
     if not img_root or not hdpr_root:
         logging.warning(f"Bypassing branch [{dataset_type}]: Required path pointers missing from config.yaml.")
         return False
+
+    # --- UPSTREAM FILE INTEGRITY GUARD ---
+    # Verify at least one target image path exists before spawning the matplotlib canvas
+    slice_exists_somewhere = False
+    for method in methods:
+        img_path = get_image_path(img_root, hdpr_root, method, x_folder, tile, z_slice)
+        if img_path.exists():
+            slice_exists_somewhere = True
+            break
+            
+    if not slice_exists_somewhere:
+        logging.error(f"  [PATH ERROR] Target slice folder/images completely offline on disk volume: {tile}/{z_slice}")
+        return False
         
-    # squeeze=False keeps axes formatted as a predictable 2D grid matrix even if num_cols is 1
-    fig, axes = plt.subplots(2, num_cols, figsize=(5 * num_cols, 10), squeeze=False)
+    # FIX: Applied identical tight layout dimensions matching Step 05 & Step 07 grids
+    fig, axes = plt.subplots(
+        2, num_cols, 
+        figsize=(4.0 * num_cols, 7.2), 
+        squeeze=False,
+        gridspec_kw={'height_ratios': [1, 0.65]}
+    )
     
-    # Visual Polish: Streamlined headers to optimize white space tracking for paper prints
-    fig.suptitle(f"{dataset_type} | Optical Slice: {z_slice}", fontsize=22, y=0.98, fontweight='bold')
+    fig.suptitle(f"{dataset_type} | Optical Slice: {z_slice}", fontsize=20, y=0.97, fontweight='bold')
     
     for i, method in enumerate(methods):
         ax_img = axes[0, i]
@@ -103,12 +120,10 @@ def draw_figure(x_folder: str, tile: str, z_slice: str, dataset_type: str, out_f
             img_16 = tifffile.imread(str(img_path))
             h, w = img_16.shape
             
-            # Map dynamic ranges safely into standard 8-bit viewports
             img_8 = cv2.normalize(img_16, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             ax_img.imshow(img_8, cmap='gray')
             ax_img.axis('off')
             
-            # Extract box spatial vectors
             boxes = parse_boxes(txt_path, w, h)
             for box in boxes:
                 x1, y1, bw, bh, cls = box
@@ -116,10 +131,8 @@ def draw_figure(x_folder: str, tile: str, z_slice: str, dataset_type: str, out_f
                 rect = patches.Rectangle((x1, y1), bw, bh, linewidth=1, edgecolor=color, facecolor='none', alpha=0.8)
                 ax_img.add_patch(rect)
                 
-            # Clean Subfigure Titles: Keeping counts separate from image pixels
-            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=15, fontweight='bold', pad=10)
+            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=14, fontweight='bold', pad=8)
 
-            # Draw accurate frequency logs using uncompressed 16-bit intensity values
             pixel_data = img_16.flatten()
             pixel_data = pixel_data[pixel_data > 0] 
             
@@ -128,29 +141,33 @@ def draw_figure(x_folder: str, tile: str, z_slice: str, dataset_type: str, out_f
                 median_val = np.median(pixel_data)
                 
                 ax_hist.hist(pixel_data, bins=100, log=True, color='royalblue', alpha=0.7)
-                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2.5, alpha=0.8, label=f'Mean: {mean_val:.0f}')
-                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2.5, alpha=0.8, label=f'Med: {median_val:.0f}')
+                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, alpha=0.8, label=f'Mean: {mean_val:.0f}')
+                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2, alpha=0.8, label=f'Med: {median_val:.0f}')
                 
-                # Upgraded text formatting matching core panel engines
-                ax_hist.set_title("Intensity Distribution", fontsize=13, fontweight='bold', pad=8)
-                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=13, fontweight='bold')
-                ax_hist.set_ylabel("Frequency (Log Scale)", fontsize=13, fontweight='bold')
-                ax_hist.tick_params(axis='both', which='major', labelsize=12)
-                ax_hist.legend(loc='upper right', fontsize=12, framealpha=0.9)
+                ax_hist.set_title("Intensity Distribution", fontsize=11, fontweight='bold', pad=6)
+                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=11, fontweight='bold')
+                ax_hist.set_ylabel("Frequency (Log)", fontsize=11, fontweight='bold')
+                ax_hist.tick_params(axis='both', which='major', labelsize=10)
+                ax_hist.legend(loc='upper right', fontsize=10, framealpha=0.9)
             else:
-                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=14, fontweight='bold')
+                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=12, fontweight='bold')
                 ax_hist.axis('off')
         else:
-            ax_img.text(0.5, 0.5, "Image Offline", ha='center', va='center', color='red', fontsize=14, fontweight='bold')
+            ax_img.text(0.5, 0.5, "Image Offline", ha='center', va='center', color='red', fontsize=12, fontweight='bold')
             ax_img.axis('off')
             ax_hist.axis('off')
 
-    plt.tight_layout(rect=[0, 0.02, 1, 0.94])
+    # Applied fine-tuned h_pad=1.8 spacer parameters to guarantee no title masking overlaps
+    plt.tight_layout(
+        rect=[0.01, 0.01, 0.99, 0.94], 
+        h_pad=1.8,                    
+        w_pad=0.6                     
+    )
     out_path = Path(out_folder) / f"{z_slice}_{dataset_type}_specific.png"
     plt.savefig(out_path, dpi=dpi)
     plt.close()
     
-    logging.info(f"Target panel matrix exported successfully: {out_path.name}")
+    logging.info(f"  Target panel matrix exported successfully: {out_path.name}")
     return True
 
 def main():
@@ -164,7 +181,6 @@ def main():
     params = CFG['parameters']
     target_z_slices = params.get('target_z_slices', [])
     
-    # Structural Check fallback: if user provides a single string scalar, wrap it into a list container safely
     if isinstance(target_z_slices, str):
         target_z_slices = [target_z_slices]
         
@@ -176,7 +192,7 @@ def main():
     dpi = params.get('dpi', 150)
     
     logging.info(f"--- TARGETED MULTI-SLICE EXTRACTION MODULE INITIALIZED ---")
-    logging.info(f"Indexed {len(target_z_slices)} volumetric coordinates to inspect.")
+    logging.info(f"Indexed {len(target_z_slices)} specific coordinate arrays to look up.")
     print("-" * 80 + "\n")
     
     for idx, slice_token in enumerate(target_z_slices, 1):
@@ -184,14 +200,13 @@ def main():
         parts = slice_token.split('_')
         
         if len(parts) < 3:
-            logging.error(f"[{idx}] Skipping incompatible coordinate string layout: '{slice_token}'. Needs 'X_Y_Z' formatting.")
+            logging.error(f"[{idx}] Skipping incompatible coordinate layout string: '{slice_token}'. Needs 'X_Y_Z' template.")
             continue
             
-        # Automated deduction steps from string tokens structure mapping
         x_folder = parts[0]
         tile = f"{parts[0]}_{parts[1]}"
         
-        logging.info(f"[{idx}/{len(target_z_slices)}] Rendering target target: {slice_token}")
+        logging.info(f"[{idx}/{len(target_z_slices)}] Querying volume for path signature: {slice_token}")
         
         if dataset_type == "BOTH":
             draw_figure(x_folder, tile, slice_token, "RAW", out_dir, dpi)
@@ -199,10 +214,10 @@ def main():
         elif dataset_type in ["RAW", "STRETCHED"]:
             draw_figure(x_folder, tile, slice_token, dataset_type, out_dir, dpi)
         else:
-            logging.error(f"Unknown dataset_type token context constraint attribute: '{dataset_type}'.")
+            logging.error(f"Unknown dataset_type token context parameter constraint: '{dataset_type}'.")
             return
 
-    logging.info(f"--- PROCESS EXITED SUCCESSFULLY | Figure outputs deployed to target folder: {out_dir} ---")
+    logging.info(f"--- PROCESS EXITED SUCCESSFULLY | Figure panel matrix pipeline complete ---")
 
 if __name__ == '__main__':
     main()

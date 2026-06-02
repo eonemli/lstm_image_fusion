@@ -22,7 +22,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-# Configure unbuffered log stream optimized for HPC clusters and standard out redirects
+# Configure unbuffered log stream explicitly optimized for direct cluster bsub tracking
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -44,7 +44,7 @@ CFG = GLOBAL_CFG['code_09_validation_extraction']
 STRUCT = GLOBAL_CFG['structure']
 
 def format_time(seconds: float) -> str:
-    """Converts raw seconds into an elegant execution clock readout."""
+    """Converts raw seconds into an elegant execution clock readout string."""
     return time.strftime("%H:%M:%S", time.gmtime(max(0.0, seconds)))
 
 def count_cells_in_txt(txt_path: Path) -> int:
@@ -58,7 +58,7 @@ def count_cells_in_txt(txt_path: Path) -> int:
 def parse_boxes(txt_path: Path, img_w: int, img_h: int) -> List[Tuple[float, float, float, float, int]]:
     """Reads YOLO text file and converts relative coordinates to absolute pixel boxes."""
     boxes = []
-    if not txt_path or not txt_path.exists():
+    if not txt_path or not txt_path.exists() or txt_path.is_dir():
         return boxes
     with open(txt_path, 'r') as f:
         for line in f:
@@ -88,7 +88,6 @@ def get_image_path(method: str, x_folder: str, tile: str, z_slice: str, dataset_
     if "HDPR" in method:
         return hdpr_root / hdpr_dir / channel / x_folder / tile / f"{z_slice}.tiff"
     else:
-        # Preserve specialized laboratory hardware directory mapping rules
         mapping = STRUCT.get('raw_image_mapping', {})
         actual_img_folder = mapping.get(method, method)
         return base_root / actual_img_folder / channel / x_folder / tile / f"{z_slice}.tiff"
@@ -98,11 +97,15 @@ def generate_comparison_grid(x_folder: str, tile: str, z_slice: str, dataset_typ
     methods = STRUCT['ACQUISITION_MODES'] + ['HDPR_Early', 'HDPR_Late']
     num_cols = len(methods)
     
-    # squeeze=False protects array formatting structure if num_cols evaluates to 1
-    fig, axes = plt.subplots(2, num_cols, figsize=(5 * num_cols, 10), squeeze=False)
+    # Configured row height distribution specs [1, 0.65] matching prior tools
+    fig, axes = plt.subplots(
+        2, num_cols, 
+        figsize=(4.0 * num_cols, 7.2), 
+        squeeze=False,
+        gridspec_kw={'height_ratios': [1, 0.65]}
+    )
     
-    # Correction: Streamlined title format to exclude redundant spatial string tags
-    fig.suptitle(f"{dataset_type} Validation Profile | Optical Slice: {z_slice}", fontsize=22, y=0.98, fontweight='bold')
+    fig.suptitle(f"{dataset_type} Validation Profile | Optical Slice: {z_slice}", fontsize=20, y=0.97, fontweight='bold')
     
     for i, method in enumerate(methods):
         ax_img = axes[0, i]
@@ -118,23 +121,23 @@ def generate_comparison_grid(x_folder: str, tile: str, z_slice: str, dataset_typ
             img_16 = tifffile.imread(str(img_path))
             h, w = img_16.shape
             
-            # Replicate intensity bounds cleanly onto standard 8-bit viewports
             img_8 = cv2.normalize(img_16, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             ax_img.imshow(img_8, cmap='gray')
             ax_img.axis('off')
             
-            # Map absolute box coordinate paths
-            boxes = parse_boxes(txt_path, w, h)
-            for box in boxes:
-                x1, y1, bw, bh, cls = box
-                color = 'lime' if cls == 0 else 'yellow'
-                rect = patches.Rectangle((x1, y1), bw, bh, linewidth=1, edgecolor=color, facecolor='none', alpha=0.8)
-                ax_img.add_patch(rect)
+            # Safeguard Guard: Check if file tracking links point correctly to labels on disk
+            if txt_path.exists() and not txt_path.is_dir():
+                boxes = parse_boxes(txt_path, w, h)
+                for box in boxes:
+                    x1, y1, bw, bh, cls = box
+                    color = 'lime' if cls == 0 else 'yellow'
+                    rect = patches.Rectangle((x1, y1), bw, bh, linewidth=1, edgecolor=color, facecolor='none', alpha=0.8)
+                    ax_img.add_patch(rect)
+            else:
+                boxes = []
                 
-            # Correction: Appended counts safely to subfigure title strings to protect raw pixel views
-            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=15, fontweight='bold', pad=10)
+            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=14, fontweight='bold', pad=8)
 
-            # Draw accurate 16-bit intensity frequency distributions on log scales
             pixel_data = img_16.flatten()
             pixel_data = pixel_data[pixel_data > 0]
             
@@ -143,25 +146,30 @@ def generate_comparison_grid(x_folder: str, tile: str, z_slice: str, dataset_typ
                 median_val = np.median(pixel_data)
                 
                 ax_hist.hist(pixel_data, bins=100, log=True, color='royalblue', alpha=0.7)
-                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2.5, alpha=0.8, label=f'Mean: {mean_val:.0f}')
-                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2.5, alpha=0.8, label=f'Med: {median_val:.0f}')
+                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, alpha=0.8, label=f'Mean: {mean_val:.0f}')
+                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2, alpha=0.8, label=f'Med: {median_val:.0f}')
                 
-                # Upgraded text rendering scales to match publication matrix rules
-                ax_hist.set_title("Intensity Distribution", fontsize=13, fontweight='bold', pad=8)
-                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=13, fontweight='bold')
-                ax_hist.set_ylabel("Frequency (Log Scale)", fontsize=13, fontweight='bold')
-                ax_hist.tick_params(axis='both', which='major', labelsize=12)
-                ax_hist.legend(loc='upper right', fontsize=12, framealpha=0.9)
+                ax_hist.set_title("Intensity Distribution", fontsize=11, fontweight='bold', pad=6)
+                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=11, fontweight='bold')
+                ax_hist.set_ylabel("Frequency (Log)", fontsize=11, fontweight='bold')
+                ax_hist.tick_params(axis='both', which='major', labelsize=10)
+                ax_hist.legend(loc='upper right', fontsize=10, framealpha=0.9)
             else:
-                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=14, fontweight='bold')
+                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=12, fontweight='bold')
                 ax_hist.axis('off')
         else:
-            ax_img.text(0.5, 0.5, "Image Offline", ha='center', va='center', color='red', fontsize=14, fontweight='bold')
+            ax_img.text(0.5, 0.5, "Image Offline", ha='center', va='center', color='red', fontsize=12, fontweight='bold')
             ax_img.axis('off')
             ax_hist.axis('off')
 
-    plt.tight_layout(rect=[0, 0.02, 1, 0.94])
-    out_path = out_folder / f"{tile}_{z_slice}_Comparison_Grid.png"
+    # Configured the fine-tuned h_pad=1.8 and side border overrides
+    plt.tight_layout(
+        rect=[0.01, 0.01, 0.99, 0.94], 
+        h_pad=1.8,                    
+        w_pad=0.6                     
+    )
+    # file string syntax to output clean names without x_y string duplication
+    out_path = out_folder / f"{z_slice}_Comparison_Grid.png"
     plt.savefig(out_path, dpi=dpi)
     plt.close()
 
@@ -228,6 +236,7 @@ def main():
                 
     methods = STRUCT['ACQUISITION_MODES'] + ['HDPR_Early', 'HDPR_Late']
     start_time = time.time()
+    slices_processed = 0
     
     for i, txt_path in enumerate(selected_txt_paths, 1):
         rel_parts = txt_path.relative_to(target_txt_dir).parts
@@ -238,11 +247,11 @@ def main():
         tile_folder = rel_parts[1]
         z_slice = rel_parts[2].replace(".txt", "")
         
-        # Build clean validation cohort subfolders architecture
-        slice_out_dir = out_root / f"{tile_folder}_{z_slice}"
+        # Build clean validation cohort subfolders architecture without duplicating coords
+        slice_out_dir = out_root / z_slice
         img_dir = slice_out_dir / "images"
         lbl_dir = slice_out_dir / "labels"
-        gt_dir = slice_out_dir / "labels_gt" # Empty folder layer created to receive manual manual entries
+        gt_dir = slice_out_dir / "labels_gt"
         
         for folder_path in [img_dir, lbl_dir, gt_dir]:
             folder_path.mkdir(parents=True, exist_ok=True)
@@ -252,7 +261,6 @@ def main():
             if src_txt.exists():
                 shutil.copy2(str(src_txt), lbl_dir / f"{method}.txt")
             
-            # Skip image copy if mode tracks evaluate to Late Fusion models (inference texts vectors only)
             if method != 'HDPR_Late':
                 src_img = get_image_path(method, x_folder, tile_folder, z_slice, dataset_type)
                 if not src_img.exists() and src_img.suffix == '.tiff':
@@ -261,11 +269,21 @@ def main():
                 if src_img.exists():
                     shutil.copy2(str(src_img), img_dir / f"{method}.tiff")
         
-        # Render the updated 2xN comparative visualization matrices if active
         if params.get('generate_annotated_grids', False):
             generate_comparison_grid(x_folder, tile_folder, z_slice, dataset_type, slice_out_dir, params.get('dpi', 150))
             
-        logging.info(f"[{str(i).rjust(3)}/{actual_target}] Deployed validation sandbox sandbox: {tile_folder}/{z_slice}")
+        # Telemetry Engine Updates: Progress tracking block for stable cluster bsub reviews
+        slices_processed += 1
+        elapsed = time.time() - start_time
+        avg_time = elapsed / slices_processed
+        remaining = avg_time * (actual_target - slices_processed)
+        percentage = (slices_processed / actual_target) * 100
+        
+        logging.info(
+            f"[{percentage:6.2f}%] Extracted: {slices_processed}/{actual_target} | "
+            f"Sandbox Slice: {z_slice.ljust(25)} | "
+            f"Remaining: {format_time(remaining)}"
+        )
         sys.stdout.flush()
 
     logging.info(f"\n--- PROCESS SUCCESSFUL | Saved {actual_target} sandboxes inside output directory: {out_root} ---")

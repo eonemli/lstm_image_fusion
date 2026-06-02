@@ -46,37 +46,46 @@ def fuse_task(args: Tuple[str, str, dict, dict, str, str]) -> bool:
     """
     filename, tile_subpath, cfg_struct, cfg_fuse, root_in, root_out = args
     
-    images_16bit = []
-    modes = cfg_struct['ACQUISITION_MODES'] # General loop handles any permutation grid
+    modes = cfg_struct['ACQUISITION_MODES']
     channel = cfg_struct['CHANNEL']
     min_thresh = cfg_fuse.get('min_signal_threshold', 1)
 
-    # Load images across all available power/exposure domains
-    for mode in modes:
+    out_dir = Path(root_out) / "HDPR" / channel / tile_subpath
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / filename
+
+    # Isolate the first exposure path to inspect the slice profile
+    first_img_path = Path(root_in) / modes[0] / channel / tile_subpath / filename
+    if not first_img_path.exists():
+        return False
+
+    # --- PADDING BYPASS VIA DIRECT FILESYSTEM COPY ---
+    try:
+        baseline_img = tifffile.imread(str(first_img_path))
+        if baseline_img.max() <= min_thresh:
+            # Directly copy the original file byte-for-byte to keep filesystem compression intact
+            shutil.copy2(str(first_img_path), str(out_file))
+            return True
+    except Exception as e:
+        logging.warning(f"Failed to process baseline check for {first_img_path}: {e}")
+        return False
+
+    # Load the remaining active exposure frames for this slice position
+    images_16bit = [baseline_img]
+    for mode in modes[1:]:
         img_path = Path(root_in) / mode / channel / tile_subpath / filename
         if not img_path.exists():
             return False
-            
-        img = tifffile.imread(str(img_path))
-        images_16bit.append(img)
+        images_16bit.append(tifffile.imread(str(img_path)))
 
-    if not images_16bit:
-        return False
+    # --- TARGETED GROUP MAX INTENSITY RESCALING ---
+    # Identify the real upper intensity boundary across this specific multi-exposure slice group
+    group_max = float(max(img.max() for img in images_16bit))
+    if group_max == 0:
+        group_max = 1.0  # Safe guard against zero division
 
-    out_dir = Path(root_out) / "HDPR" / channel / tile_subpath
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = str(out_dir / filename)
-
-    # --- PADDING BYPASS LOGIC ---
-    # If baseline acquisition has no structure, bypass calculations to protect processing limits
-    if images_16bit[0].max() <= min_thresh:
-        # Save completely uncompressed to maintain strict volumetric shape and file size consistency
-        tifffile.imwrite(out_file, images_16bit[0], compression=None)
-        return True
-
-    # --- CORE PYRAMID EXPOSURE FUSION MATH ---
-    # Convert integer matrices to [0.0, 1.0] floats for OpenCV operators
-    images_norm = [img.astype(np.float32) / 65535.0 for img in images_16bit]
+    # Normalize relative to the group maximum so values center correctly around Mertens' 0.5 exposure well
+    images_norm = [img.astype(np.float32) / group_max for img in images_16bit]
 
     w = cfg_fuse['weights']
     merge_mertens = cv2.createMergeMertens(
@@ -85,20 +94,20 @@ def fuse_task(args: Tuple[str, str, dict, dict, str, str]) -> bool:
         exposure_weight=w['exposure']
     )
 
-    # Execute Laplacian and Gaussian pyramid multi-exposure blending
+    # Execute multi-exposure blending across the normalized float spaces
     fusion = merge_mertens.process(images_norm)
     
-    # --- OPTIONAL CONTRAST STRETCHING (Requirement 1) ---
+    # --- OUTPUT RANGE CONTROL REGIMES ---
     if cfg_fuse.get('contrast_stretching', False):
         f_min = np.min(fusion)
         f_max = np.max(fusion)
         fusion = (fusion - f_min) / (f_max - f_min + 1e-8)
+        fusion_16bit = np.clip(fusion * 65535.0, 0, 65535).astype(np.uint16)
+    else:
+        # Re-scale back up using the exact group maximum to protect global tile-to-tile intensity consistency
+        fusion_16bit = np.clip(fusion * group_max, 0, 65535).astype(np.uint16)
     
-    # Clip extreme ranges safely and map back to uint16 bit space
-    fusion = np.clip(fusion, 0.0, 1.0)
-    fusion_16bit = (fusion * 65535.0).astype(np.uint16)
-    
-    tifffile.imwrite(out_file, fusion_16bit, compression=None)
+    tifffile.imwrite(str(out_file), fusion_16bit, compression=None)
     return True
 
 def discover_tiles(input_root: Path, modes: List[str], channel: str, tiles_config: Union[str, list]) -> List[str]:
@@ -135,7 +144,6 @@ def main():
     total_tiles = len(tiles)
     start_time = time.time()
 
-    # --- PIPELINE STEP ACTIVE TOGGLE CHECK ---
     if not fuse_cfg.get('enabled', True):
         logging.info("--- HDPR FUSION PIPELINE BYPASSED VIA CONFIG ---")
         return
@@ -154,17 +162,14 @@ def main():
         if not filenames:
             continue
 
-        # Package parallel tasks cleanly
         task_args = [
             (fname, tile, struct, fuse_cfg, str(root_in), str(root_out)) 
             for fname in filenames
         ]
 
-        # Multi-core thread distribution per tile
         with ProcessPoolExecutor(max_workers=fuse_cfg['num_cores']) as executor:
             executor.map(fuse_task, task_args)
 
-        # Progress reporting metrics calculation
         done_tiles = i + 1
         elapsed = time.time() - start_time
         avg_per_tile = elapsed / done_tiles

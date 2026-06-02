@@ -52,6 +52,27 @@ def format_time(seconds: float) -> str:
     """Converts seconds into an elegant execution clock readout."""
     return time.strftime("%H:%M:%S", time.gmtime(max(0.0, seconds)))
 
+def convert_to_color_mode(img_8bit: np.ndarray, mode: str) -> np.ndarray:
+    """Converts an 8-bit single-channel image into a 3-channel BGR canvas matrix."""
+    mode_clean = str(mode).lower().strip()
+    
+    if mode_clean == "gray":
+        return cv2.cvtColor(img_8bit, cv2.COLOR_GRAY2BGR)
+        
+    # Initialize structural blanks for channel segregation routing
+    blank = np.zeros_like(img_8bit)
+    
+    # OpenCV layout follows Blue (0), Green (1), Red (2) channel indexes
+    if mode_clean == "green":
+        return cv2.merge([blank, img_8bit, blank])
+    elif mode_clean == "red":
+        return cv2.merge([blank, blank, img_8bit])
+    elif mode_clean == "blue":
+        return cv2.merge([img_8bit, blank, blank])
+    else:
+        logging.warning(f"Unknown color_mode setting '{mode}'. Defaulting to standard grayscale.")
+        return cv2.cvtColor(img_8bit, cv2.COLOR_GRAY2BGR)
+
 def run_tiled_inference(img_16bit: np.ndarray, model: Any, device: str) -> List[List[float]]:
     """Slices raw 16-bit frames into overlapping patch arrays on-the-fly inside RAM."""
     h, w = img_16bit.shape
@@ -62,11 +83,8 @@ def run_tiled_inference(img_16bit: np.ndarray, model: Any, device: str) -> List[
     else:
         img_8bit = np.zeros((h, w), dtype=np.uint8)
 
-    if CFG['yolo'].get('color_mode', 'gray').lower() == 'green':
-        blank = np.zeros_like(img_8bit)
-        img_bgr = cv2.merge([blank, img_8bit, blank])
-    else:
-        img_bgr = cv2.cvtColor(img_8bit, cv2.COLOR_GRAY2BGR)
+    # Apply on-the-fly channel matrix generation tracking configuration settings
+    img_bgr = convert_to_color_mode(img_8bit, CFG['yolo'].get('color_mode', 'gray'))
 
     tile_size = CFG['yolo']['tile_size']
     step = CFG['yolo']['step']
@@ -151,7 +169,6 @@ def process_z_slice(args: Tuple[str, int, dict]) -> Tuple[str, str]:
     device = f"cuda:{gpu_id}"
     rel_path = Path(rel_path_str)
     
-    # Inject explicit model directory structure path securely from the YAML file
     model_root = CFG['paths'].get('model_root', '')
     if model_root and model_root not in sys.path:
         sys.path.append(model_root)
@@ -168,7 +185,6 @@ def process_z_slice(args: Tuple[str, int, dict]) -> Tuple[str, str]:
     resume_mode = CFG['system'].get('resume', False)
     min_thresh = CFG['system'].get('min_signal_threshold', 1)
     
-    # --- LAZY PATH POPULATION GRID (Prevents KeyErrors for disabled tracks) ---
     processing_branches = {}
     if "RAW" in active_branches:
         processing_branches["RAW"] = {
@@ -182,6 +198,7 @@ def process_z_slice(args: Tuple[str, int, dict]) -> Tuple[str, str]:
         }
         
     branches_resumed, branches_padded = 0, 0
+    target_color_mode = CFG['yolo'].get('color_mode', 'gray')
     
     for dataset_type, roots in processing_branches.items():
         late_txt_out = Path(CFG['paths']['output_txt_root']) / dataset_type / "HDPR_Late" / rel_path.parent / f"{rel_path.stem}.txt"
@@ -207,12 +224,9 @@ def process_z_slice(args: Tuple[str, int, dict]) -> Tuple[str, str]:
                 boxes = run_tiled_inference(img_16, model, device)
                 all_boxes[mode_folder] = boxes
                 
+                # Apply color routing optimization onto verification grid generation loops
                 img_8 = cv2.normalize(img_16, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                if CFG['yolo'].get('color_mode', 'gray').lower() == 'green':
-                    blank = np.zeros_like(img_8)
-                    images[mode_folder] = cv2.merge([blank, img_8, blank])
-                else:
-                    images[mode_folder] = cv2.cvtColor(img_8, cv2.COLOR_GRAY2BGR)
+                images[mode_folder] = convert_to_color_mode(img_8, target_color_mode)
                 
                 txt_out = Path(CFG['paths']['output_txt_root']) / dataset_type / mode_folder / rel_path.parent / f"{rel_path.stem}.txt"
                 save_txt_labels(boxes, str(txt_out), w_global, h_global)
@@ -229,11 +243,7 @@ def process_z_slice(args: Tuple[str, int, dict]) -> Tuple[str, str]:
                 all_boxes['HDPR_Early'] = boxes
                 
                 img_8 = cv2.normalize(img_16, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                if CFG['yolo'].get('color_mode', 'gray').lower() == 'green':
-                    blank = np.zeros_like(img_8)
-                    images['HDPR_Early'] = cv2.merge([blank, img_8, blank])
-                else:
-                    images['HDPR_Early'] = cv2.cvtColor(img_8, cv2.COLOR_GRAY2BGR)
+                images['HDPR_Early'] = convert_to_color_mode(img_8, target_color_mode)
                 
                 txt_out = Path(CFG['paths']['output_txt_root']) / dataset_type / "HDPR_Early" / rel_path.parent / f"{rel_path.stem}.txt"
                 save_txt_labels(boxes, str(txt_out), w_global, h_global)
@@ -320,8 +330,8 @@ def main():
             try:
                 filename, status = future.result()
                 tasks_done += 1
-                elapsed = time.time() - start_time
-                avg_time = elapsed / tasks_done
+                max_time = time.time() - start_time
+                avg_time = max_time / tasks_done
                 remaining = avg_time * (total_tasks - tasks_done)
                 percentage = (tasks_done / total_tasks) * 100
                 

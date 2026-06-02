@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Light-Sheet Fluorescence Microscopy (LSFM) Post-Processing Pipeline.
-Step 05: Generate Comparative Grid Panels (Adapts dynamically to RAW/STRETCHED availability).
+Step 05: Generate Comparative Grid Panels (Centralized Variance Limits & 3D Volumetric Sorting).
 """
 
 import os
@@ -79,7 +79,6 @@ def draw_figure(slice_info: pd.Series, dataset_type: str, out_folder: Path) -> b
     methods = STRUCT['ACQUISITION_MODES'] + ['HDPR_Early', 'HDPR_Late']
     num_cols = len(methods)
     
-    # Dynamic Path Validation Layer
     if dataset_type == "RAW":
         img_root = CFG['paths'].get('raw_root')
         hdpr_root = CFG['paths'].get('raw_hdpr_root')
@@ -91,8 +90,13 @@ def draw_figure(slice_info: pd.Series, dataset_type: str, out_folder: Path) -> b
         logging.warning(f"Skipping rendering for branch [{dataset_type}]: Target paths missing from configuration.")
         return False
         
-    fig, axes = plt.subplots(2, num_cols, figsize=(5 * num_cols, 10))
-    fig.suptitle(f"{dataset_type} | Optical Slice: {z_slice}", fontsize=22, y=0.98, fontweight='bold')
+    fig, axes = plt.subplots(
+        2, num_cols, 
+        figsize=(4.0 * num_cols, 7.2),
+        gridspec_kw={'height_ratios': [1, 0.65]}
+    )
+    
+    fig.suptitle(f"{dataset_type} | Optical Slice: {z_slice}", fontsize=20, y=0.97, fontweight='bold')
     
     for i, method in enumerate(methods):
         ax_img = axes[0, i]
@@ -116,7 +120,7 @@ def draw_figure(slice_info: pd.Series, dataset_type: str, out_folder: Path) -> b
                 rect = patches.Rectangle((x1, y1), bw, bh, linewidth=1, edgecolor=color, facecolor='none', alpha=0.8)
                 ax_img.add_patch(rect)
                 
-            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=15, fontweight='bold', pad=10)
+            ax_img.set_title(f"{method}\n(Boxes: {len(boxes)})", fontsize=14, fontweight='bold', pad=8)
 
             pixel_data = img_16.flatten()
             pixel_data = pixel_data[pixel_data > 0] 
@@ -126,23 +130,28 @@ def draw_figure(slice_info: pd.Series, dataset_type: str, out_folder: Path) -> b
                 median_val = np.median(pixel_data)
                 
                 ax_hist.hist(pixel_data, bins=100, log=True, color='royalblue', alpha=0.7)
-                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2.5, alpha=0.8, label=f'Mean: {mean_val:.0f}')
-                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2.5, alpha=0.8, label=f'Med: {median_val:.0f}')
+                ax_hist.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, alpha=0.8, label=f'Mean: {mean_val:.0f}')
+                ax_hist.axvline(median_val, color='green', linestyle='dotted', linewidth=2, alpha=0.8, label=f'Med: {median_val:.0f}')
                 
-                ax_hist.set_title("Intensity Distribution", fontsize=13, fontweight='bold', pad=8)
-                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=13, fontweight='bold')
-                ax_hist.set_ylabel("Frequency (Log Scale)", fontsize=13, fontweight='bold')
-                ax_hist.tick_params(axis='both', which='major', labelsize=12)
-                ax_hist.legend(loc='upper right', fontsize=12, framealpha=0.9)
+                ax_hist.set_title("Intensity Distribution", fontsize=11, fontweight='bold', pad=6)
+                ax_hist.set_xlabel("Pixel Intensity (16-bit)", fontsize=11, fontweight='bold')
+                ax_hist.set_ylabel("Frequency (Log)", fontsize=11, fontweight='bold')
+                ax_hist.tick_params(axis='both', which='major', labelsize=10)
+                ax_hist.legend(loc='upper right', fontsize=10, framealpha=0.9)
             else:
-                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=14, fontweight='bold')
+                ax_hist.text(0.5, 0.5, "Noise Core Block", ha='center', va='center', fontsize=12, fontweight='bold')
                 ax_hist.axis('off')
         else:
-            ax_img.text(0.5, 0.5, "Image Target Offline", ha='center', va='center', color='red', fontsize=14, fontweight='bold')
+            ax_img.text(0.5, 0.5, "Image Target Offline", ha='center', va='center', color='red', fontsize=12, fontweight='bold')
             ax_img.axis('off')
             ax_hist.axis('off')
 
-    plt.tight_layout(rect=[0, 0.02, 1, 0.94])
+    plt.tight_layout(
+        rect=[0.01, 0.01, 0.99, 0.94], 
+        h_pad=1.8,                    
+        w_pad=0.6                     
+    )
+    
     out_path = Path(out_folder) / f"{z_slice}_{dataset_type}.png"
     plt.savefig(out_path, dpi=150)
     plt.close()
@@ -159,20 +168,16 @@ def main():
         return
         
     df = pd.read_csv(ledger_path, sep='\t')
-    
-    # Dynamic Branch Discovery Layer
     available_datasets = df['Dataset'].unique().tolist()
     if not available_datasets:
         logging.error("The provided text ledger contains no data lines.")
         return
         
-    # Safely select an anchor branch for calculating categorical variations
     anchor_dataset = "STRETCHED" if "STRETCHED" in available_datasets else available_datasets[0]
     logging.info(f"Detected processing tracks: {available_datasets}. Setting reference anchor to: [{anchor_dataset}]")
     
     df_anchor = df[df['Dataset'] == anchor_dataset].copy()
     
-    # Pivot using whichever dataset branch actually exists
     pivot = df_anchor.pivot_table(
         index=['X_Folder', 'Tile', 'Z_Slice'], 
         columns='Method', 
@@ -186,17 +191,29 @@ def main():
     pivot = pivot[pivot['Max_Boxes'] > 5].copy() 
     pivot['Variance'] = pivot[method_cols].max(axis=1) - pivot[method_cols].min(axis=1)
     
-    pivot['Detection_Class'] = 'Mixed'
-    pivot.loc[pivot['Variance'] <= 3, 'Detection_Class'] = 'Consistent'
-    pivot.loc[pivot['Variance'] >= 10, 'Detection_Class'] = 'Different'
+    # Dynamically loading threshold limits straight from the central yaml configuration file
+    v_thresh_consistent = CFG['parameters'].get('variance_threshold_consistent', 3)
+    v_thresh_different = CFG['parameters'].get('variance_threshold_different', 10)
     
-    coords = pivot['Tile'].str.split('_', expand=True).astype(float)
+    pivot['Detection_Class'] = 'Mixed'
+    pivot.loc[pivot['Variance'] <= v_thresh_consistent, 'Detection_Class'] = 'Consistent'
+    pivot.loc[pivot['Variance'] >= v_thresh_different, 'Detection_Class'] = 'Different'
+    
+    # 3D Volumetric Euclidean parsing strategy
+    coords = pivot['Z_Slice'].str.split('_', expand=True).astype(float)
     pivot['X'] = coords[0]
     pivot['Y'] = coords[1]
+    pivot['Z'] = coords[2]
     
     center_X = (pivot['X'].max() + pivot['X'].min()) / 2.0
     center_Y = (pivot['Y'].max() + pivot['Y'].min()) / 2.0
-    pivot['Distance'] = np.sqrt((pivot['X'] - center_X)**2 + (pivot['Y'] - center_Y)**2)
+    center_Z = (pivot['Z'].max() + pivot['Z'].min()) / 2.0
+    
+    pivot['Distance'] = np.sqrt(
+        (pivot['X'] - center_X)**2 + 
+        (pivot['Y'] - center_Y)**2 + 
+        (pivot['Z'] - center_Z)**2
+    )
     
     dist_33 = pivot['Distance'].quantile(0.33)
     dist_66 = pivot['Distance'].quantile(0.66)
@@ -219,9 +236,16 @@ def main():
     target_samples = CFG['parameters'].get('target_samples_per_category', 10)
     random_seed = CFG['parameters'].get('random_seed', 42)
     
+    logging.info("--- GEOMETRIC COHORT SUMMARY ---")
+    logging.info(f"  Configuration Boundaries Set: Consistent Variance <= {v_thresh_consistent} | Different Variance >= {v_thresh_different}")
+    for name, cat_df in categories.items():
+        logging.info(f"  Category Pool Discovered: {name.ljust(25)} | Size: {len(cat_df)} candidate slices")
+    print("-" * 80 + "\n")
+    
     total_generated = 0
     for cat_name, df_cat in categories.items():
         if df_cat.empty:
+            logging.warning(f"Skipping cohort branch [{cat_name}]: Zero matching candidate slices found.")
             continue
             
         cat_folder = out_root / cat_name
@@ -230,16 +254,15 @@ def main():
         n_samples = min(target_samples, len(df_cat))
         sampled = df_cat.sample(n=n_samples, random_state=random_seed)
         
-        logging.info(f"Processing branch: [{cat_name}] -> Generating {n_samples} matrices.")
+        logging.info(f"Processing category branch: [{cat_name}] -> Rendering {n_samples} master panel figures...")
         
         for _, row in sampled.iterrows():
-            # Adaptive generation block: only renders tracks that exist in your pipeline data
             for dataset_type in available_datasets:
                 success = draw_figure(row, dataset_type, cat_folder)
                 if success:
                     total_generated += 1
             
-    logging.info(f"--- PROCESS SUCCESSFUL | Rendered {total_generated} panel grids inside: {out_root} ---")
+    logging.info(f"--- PROCESS SUCCESSFUL | Rendered {total_generated} balanced panel grids inside: {out_root} ---")
 
 if __name__ == '__main__':
     main()

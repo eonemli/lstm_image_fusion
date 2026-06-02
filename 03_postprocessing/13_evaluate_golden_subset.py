@@ -21,14 +21,16 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
 
 def load_config(path: str = "config.yaml") -> dict:
+    """Loads configuration blocks cleanly from the centralized workspace yaml configuration."""
     try:
         with open(path, "r") as f:
-            return yaml.safe_load(f)['evaluation_suite']
-    except (FileNotFoundError, KeyError) as e:
-        logging.error(f"Centralized validation architecture mapping key error: {e}")
+            return yaml.safe_load(f)
+    except FileNotFoundError as e:
+        logging.error(f"Centralized validation configuration file not found at: {path} | Exception: {e}")
         sys.exit(1)
 
-CFG = load_config()
+GLOBAL_CFG = load_config()
+CFG = GLOBAL_CFG['evaluation_suite']
 CLASSES = {0: "Neuron", 1: "Glia", 2: "Background"}
 
 def parse_boxes(txt_path: Path) -> np.ndarray:
@@ -95,7 +97,13 @@ def calculate_slice_metrics(cm: np.ndarray) -> dict:
 def plot_combined_confusion_matrix(master_cms: dict, methods: list, out_dir: Path, dpi: int, limit: int):
     logging.info("Generating 1x4 Golden Subset Combined Confusion Matrix panel...")
     vmax = max(int(np.delete(master_cms[m], 8).max()) for m in methods)
-    fig, axes = plt.subplots(1, len(methods) + 1, figsize=(25, 6.5), gridspec_kw={'width_ratios': [1]*len(methods) + [0.05], 'wspace': 0.05})
+    
+    # Synced figure sizing adjustments and padding directly with step 11 parameters
+    fig, axes = plt.subplots(
+        1, len(methods) + 1, 
+        figsize=(25, 6.5), 
+        gridspec_kw={'width_ratios': [1]*len(methods) + [0.05], 'wspace': 0.05}
+    )
     labels = ["Neuron", "Glia", "BG"]
     
     for i, method in enumerate(methods):
@@ -106,17 +114,32 @@ def plot_combined_confusion_matrix(master_cms: dict, methods: list, out_dir: Pat
         mask = np.zeros_like(cm, dtype=bool)
         mask[2, 2] = True
         
-        sns.heatmap(cm, annot=annot_cm, fmt="", cmap="Blues", xticklabels=labels, yticklabels=labels if i == 0 else False,
-                    mask=mask, vmin=0, vmax=vmax, cbar=(i == len(methods)-1), cbar_ax=axes[-1] if i == len(methods)-1 else None, ax=ax,
-                    annot_kws={"weight": "bold", "size": 22})
-        ax.set_title(f"{method} (Top {limit})", fontsize=18, fontweight='bold', pad=10)
-        if i == 0: plt.setp(ax.get_yticklabels(), rotation=90, va="center")
+        # FIX: Upgraded internal grid data tokens to size 42 bold to match layout sheets
+        sns.heatmap(
+            cm, annot=annot_cm, fmt="", cmap="Blues", 
+            xticklabels=labels, yticklabels=labels if i == 0 else False,
+            mask=mask, vmin=0, vmax=vmax, 
+            cbar=(i == len(methods)-1), cbar_ax=axes[-1] if i == len(methods)-1 else None, 
+            ax=ax, annot_kws={"weight": "bold", "size": 42}
+        )
+        
+        ax.set_title(f"{method} (Top {limit})", fontsize=22, fontweight='bold', pad=15)
+        ax.set_ylabel("")
+        ax.set_xlabel("")
+        
+        # FIX: Upgraded axis tick parameters to size 30 labels
+        ax.tick_params(axis='both', which='major', labelsize=30)
+        if i == 0: 
+            plt.setp(ax.get_yticklabels(), rotation=90, va="center")
             
-    fig.supxlabel('Predicted Class (YOLO Output)', fontsize=24, fontweight='bold', y=-0.02)
-    fig.supylabel('True Class (Ground Truth)', fontsize=24, fontweight='bold', x=0.08)
-    axes[-1].tick_params(labelsize=16)
-    axes[-1].set_ylabel('Box Count', fontsize=18, fontweight='bold', rotation=270, labelpad=25)
-    plt.savefig(out_dir / "06_Golden_Combined_CM.png", dpi=dpi, bbox_inches='tight')
+    # FIX: Synced global text headers to size 36 bold layout anchors
+    fig.supxlabel('Predicted Class (YOLO Output)', fontsize=36, fontweight='bold', y=-0.06)
+    fig.supylabel('True Class (Ground Truth)', fontsize=36, fontweight='bold', x=0.05)
+    
+    axes[-1].tick_params(labelsize=26)
+    axes[-1].set_ylabel('Box Count', fontsize=30, fontweight='bold', rotation=270, labelpad=35)
+    
+    plt.savefig(out_dir / "03_01_Golden_Combined_CM.png", dpi=dpi, bbox_inches='tight')
     plt.close()
 
 def main():
@@ -172,8 +195,7 @@ def main():
         for method in methods:
             master_cms[method] += item['cms'][method]
 
-    # Export Curated Report Logs
-    with open(out_dir / "05_Golden_Cohort_Report.txt", "w") as f:
+    with open(out_dir / "03_00_Golden_Cohort_Report.txt", "w") as f:
         f.write(f"--- GOLDEN COHORT ANALYTICAL REPORT ---\nCuration Limit: Top {len(golden_slices)} based on {rank_method} {rank_class} {rank_metric}\nMatching IoU Threshold: {iou_thresh}\n\nSelected Cohort Slices:\n")
         for i, item in enumerate(golden_slices, 1):
             f.write(f"  {i}. {item['folder']} (Curation Anchor Score: {item['score']:.3f})\n")
@@ -188,7 +210,6 @@ def main():
 
     plot_combined_confusion_matrix(master_cms, methods, out_dir, CFG['parameters']['dpi'], top_k)
 
-    # Render Summary Bar Plot
     plot_data = []
     for method in methods:
         metrics = calculate_slice_metrics(master_cms[method])
@@ -204,7 +225,7 @@ def main():
     for container in ax.containers:
         ax.bar_label(container, fmt='%.3f', padding=3, fontsize=11)
     plt.tight_layout()
-    plt.savefig(out_dir / "07_Golden_F1_Summary.png", dpi=CFG['parameters']['dpi'])
+    plt.savefig(out_dir / "03_02_Golden_F1_Summary.png", dpi=CFG['parameters']['dpi'])
     plt.close()
     logging.info(f"--- Golden Cohort Mining Extraction Complete. Artifacts deployed to: {out_dir} ---")
 

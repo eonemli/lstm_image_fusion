@@ -18,8 +18,8 @@ structure:
 code_01_preprocessing:
   enabled: true       # Set to false to bypass and directly copy files to output_dir
   
-  input_dir: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
-  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
+  input_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
   
   mode: "percentile"  # Options: "percentile" or "clip"
   min_signal_threshold: 1 # Threshold to isolate empty padding/background frames
@@ -34,7 +34,7 @@ code_01_preprocessing:
     
   dataloader:
     batch_size: 16    # Quantity of frames streamed to the compute unit simultaneously
-    num_workers: 8    # Parallel CPU workers assigned to background file loading
+    num_workers: 16    # Parallel CPU workers assigned to background file loading
 
 
 # ==============================================================================
@@ -43,14 +43,14 @@ code_01_preprocessing:
 code_02_fusion:
   enabled: true       # Set to false to bypass the fusion pipeline step
   
-  input_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
-  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+  input_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+  output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
   
   # Background Optimization Management
   min_signal_threshold: 1
   
   # Pipeline Customization Flags
-  contrast_stretching: false # Requirement 1: Set to true to enable min-max normalization. Set false for Tile-to-Tile Radiometric Consistency)
+  contrast_stretching: true # Requirement 1: Set to true to enable min-max normalization. Set false for Tile-to-Tile Radiometric Consistency)
   
   weights:
     contrast: 1.0     # High priority: preserves sharp edge details
@@ -91,26 +91,29 @@ code_03_stitched_fusion:
 code_03_inference:
   paths:
     # Explicit custom execution paths
-    model_path: "/share/lsmsmart/eonemli/yolo/ultralytics/pretrained_models/fengyi_3_brain_one_ch/single_ch_model_weights/weights/best.pt"
+    # model_path: "/share/lsmsmart/eonemli/yolo/ultralytics/pretrained_models/fengyi_3_brain_one_ch/single_ch_model_weights/weights/best.pt"
+    model_path: "/rsstu/users/a/agrinba/DeepDesign/emre/yolo_weights/MADM_single_channel/train18/weights/best.pt"
     model_root: "/share/lsmsmart/eonemli/yolo" # Explicitly sets the Ultralytics module root folder
     
-    output_txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_4_YOLO_outputs/sample3_txts"
-    output_grid_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_4_YOLO_outputs/sample3_grids"
+    output_txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
+    output_grid_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_grids"
 
     # Raw Acquisition Datasets (Active Control Branch)
-    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch3/sample1_sox9"
-    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_2_raw_HDPR"
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
     
     # Preprocessed Datasets (Optional Control Branch)
     # Note: If "STRETCHED" is removed from process_branches below, these two paths can be entirely commented out
-    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_1_percentile_clipped"
-    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_03/sample3_sox9_3_clipped_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_3_clipped_HDPR"
 
   yolo:
     classes: 
       0: "neuron"
       1: "glia"
-    color_mode: "gray"    
+    color_mode: "gray"
+    # Target channel mapping layout. 
+    # Supported values: "gray" (replicated), "green" (ch1), "red" (ch2), "blue" (ch0)    
     conf_thresh: 0.40
     nms_iou_tiles: 0.25   
     nms_iou_fusion: 0.45  
@@ -118,10 +121,10 @@ code_03_inference:
     step: 544             
 
   system:
-    num_cores: 16         
+    num_cores: 32         
     num_gpus: 1           
     batch_size: 16        
-    generate_grids: false 
+    generate_grids: false # leave as false to bypass grid generation and only output YOLO .txt predictions. 
     min_signal_threshold: 1
     
     # Dynamic Branch Allocation: Choice of controls to compute ["RAW", "STRETCHED"]. Change to just ["RAW"] to completely ignore stretched assets.
@@ -138,10 +141,10 @@ code_04_analytics:
   
   paths:
     # Source directory where YOLO prediction labels (.txt) are exported
-    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
     # Destination folder for the compiled text ledger
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_analytics"
-    
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_analytics"
+
   classes:
     0: "Neuron"
     1: "Glia"
@@ -159,17 +162,17 @@ code_05_grid_generation:
   
   paths:
     # Source paths for raw data domains
-    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
-    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
-    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
-    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_3_clipped_HDPR"
 
     # Input text files containing box locations and slice classifications
-    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
-    ledger_path: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_analytics/01_slice_level_comparison.txt"
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
+    ledger_path: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_analytics/01_slice_level_comparison.txt"
 
     # Output directory for categorical panels folders
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_grid_figs"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_grid_figs"
       
   parameters:
     target_samples_per_category: 10   # Quantity of multi-panel grids to generate per subset folder
@@ -177,7 +180,8 @@ code_05_grid_generation:
     
     # Unbiased Benchmarking Option
     generate_unbiased_random: true    # Generates a 5th control folder using true random uniform sampling
-
+    variance_threshold_consistent: 4  # Max box count delta allowed for a slice to be Consistent
+    variance_threshold_different: 10   # Min box count delta required for a slice to be Different
 
 
 # ==============================================================================
@@ -188,21 +192,21 @@ code_06_saturation_finder:
   
   paths:
     # Target output folder where saturated image subsets are grouped
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_high"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_saturated_high"
     
     # Active baseline input paths vectors
-    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
-    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
     
     # Optional input paths vectors (Can be entirely commented out if not utilized)
-    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
-    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_3_clipped_HDPR"
 
   parameters:
     saturation_threshold: 65000  # 16-bit intensity marker above which a pixel is considered saturated
     search_pool_size: 10000       # Size of random Z-slice population pool to evaluate
     target_count: 50             # Absolute limit of top-saturated slices to extract
-    max_per_tile: 5              # Localized safety limit to prevent pulling all frames from one single tile
+    max_per_tile: 25              # Localized safety limit to prevent pulling all frames from one single tile
     random_seed: 42              # Seed key to maintain strict scientific sample reproducibility
 
 
@@ -215,15 +219,16 @@ code_07_saturated_comparisons:
   
   paths:
     # Source directory containing extracted overexposed subsets (Output from step 06)
-    saturated_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_high"
+    saturated_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_saturated_high"
     # Root folder containing YOLO predictions (.txt)
-    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
     # Destination directory for the generated publication-ready grids
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_saturated_figs"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_saturated_figs"
 
   parameters:
     dpi: 150            # Resolution scale for output comparison matrices
-
+    # Select which pipeline dataset tracks to plot. Options: "RAW", "STRETCHED", or "BOTH"
+    dataset_type: "BOTH"
 
 
 
@@ -235,23 +240,24 @@ code_08_specific_slice:
   
   paths:
     # Source image root locations for raw tracking
-    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample4"
-    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_2_raw_HDPR"
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
     
     # Optional image root locations for preprocessed tracking (Can be commented out if unused)
-    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_1_percentile_clipped"
-    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_3_clipped_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_3_clipped_HDPR"
 
     # Input predictions path root folder containing YOLO .txt files
-    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_4_YOLO_outputs/sample4_txts"
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
     # Target directory for the compiled diagnostic figure panels
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample4_4_YOLO_outputs/sample4_specific_figs"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_specific_figs"
 
   parameters:
     # An array list of complete coordinate string identifiers of specific Z-slices to inspect.
     # The framework will automatically deduce distinct X_Folder and parent Tile directories for each item.
     target_z_slices:
       - "451400_306700_323420"
+      - "451400_306720_323490" # dummy to test if it handles it
       - "451400_306700_323440"
     
     # Select which dataset types to process. Options: "RAW", "STRETCHED", or "BOTH"
@@ -268,23 +274,23 @@ code_09_validation_extraction:
   
   paths:
     # Root folder containing YOLO predictions (.txt)
-    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_txts"
+    txt_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_txts"
     # Destination directory where self-contained validation sandboxes are grouped
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_validation_subset"
     
     # Active baseline input paths vectors
-    raw_root: "/rsstu/users/a/agrinba/DeepDesign/Fengyi/brain/batch4/sample5"
-    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_2_raw_HDPR"
+    raw_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample_4_0_reduced/sample4"
+    raw_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_2_raw_HDPR"
     
     # Optional input paths vectors (Will be bypassed gracefully if left blank or missing)
-    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_1_percentile_clipped"
-    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_3_clipped_HDPR"
+    stretched_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_1_percentile_clipped"
+    stretched_hdpr_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_3_clipped_HDPR"
 
   parameters:
     dataset_type: "RAW"              # Dataset branch to scan and extract. Options: "RAW" or "STRETCHED"
     selection_method: "HDPR_Late"    # The pipeline tracking modality used to evaluate cell/tissue density
-    min_detected_cells: 30           # Lower cell count cutoff to filter out empty background frames
-    total_slices_to_select: 50       # Total number of unbiased random slices to extract for validation
+    min_detected_cells: 20           # Lower cell count cutoff to filter out empty background frames
+    total_slices_to_select: 20       # Total number of unbiased random slices to extract for validation
     random_seed: 42                  # Seed key to guarantee strict statistical cohort reproducibility
     generate_annotated_grids: true   # Set to true to automatically render publication-ready reference panels
     dpi: 150                         # Image resolution scale for target exports
@@ -300,7 +306,7 @@ code_10_gt_label_fusion:
   
   paths:
     # Points directly to the validation sandbox directory generated in Step 09
-    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_validation_subset"
 
   parameters:
     gt_folder_name: "labels_gt"     # Name of the target subfolder containing human annotations
@@ -315,9 +321,9 @@ code_10_gt_label_fusion:
 evaluation_suite:
   paths:
     # Points to the validation sandboxes populated in step 09
-    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_validation_subset"
+    subset_root: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_validation_subset"
     # Destination directory for all evaluation reports, matrices, and scatter plots
-    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04/sample5_4_YOLO_outputs/sample5_evaluation_results"
+    output_dir: "/rsstu/users/a/agrinba/DeepDesign/emre/lsm_data/Batch_04_reduced/sample4_4_YOLO_outputs/sample4_evaluation_results"
 
   structure:
     gt_folder_name: "labels_gt"     # Folder containing human consensus ground-truth
@@ -330,4 +336,5 @@ evaluation_suite:
     top_k_limit: 10                 # Total slices to pull for golden subset evaluations
     ranking_method: "HDPR_Late"     # Anchor method to score golden subset pool
     ranking_class: "Neuron"         # Target class or "Average" for golden filtering
-
+    # Supported options matching script constraints: "Precision", "Recall", "Accuracy" or "F1"
+    ranking_metric: "Accuracy"      # Target score for golden filtering

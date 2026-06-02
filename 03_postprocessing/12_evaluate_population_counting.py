@@ -22,14 +22,16 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
 
 def load_config(path: str = "config.yaml") -> dict:
+    """Loads configuration blocks cleanly from the centralized workspace yaml configuration."""
     try:
         with open(path, "r") as f:
-            return yaml.safe_load(f)['evaluation_suite']
-    except (FileNotFoundError, KeyError) as e:
-        logging.error(f"Centralized configuration path exception: {e}")
+            return yaml.safe_load(f)
+    except FileNotFoundError as e:
+        logging.error(f"Centralized configuration file not found at: {path} | Exception: {e}")
         sys.exit(1)
 
-CFG = load_config()
+GLOBAL_CFG = load_config()
+CFG = GLOBAL_CFG['evaluation_suite']
 
 def count_classes_in_txt(txt_path: Path) -> Dict[int, int]:
     counts = {0: 0, 1: 0}
@@ -66,7 +68,7 @@ def render_table_image(df: pd.DataFrame, title: str, out_path: Path, dpi: int):
     plt.savefig(out_path, dpi=dpi, bbox_inches='tight')
     plt.close()
 
-def plot_agreement_scatter(df: pd.DataFrame, class_name: str, out_dir: Path, dpi: int, font_scale: float):
+def plot_agreement_scatter(df: pd.DataFrame, class_name: str, out_path: Path, dpi: int, font_scale: float):
     plt.figure(figsize=(10, 8))
     sns.set_theme(style="whitegrid", font_scale=font_scale)
     df_class = df[df['Class'] == class_name]
@@ -84,7 +86,7 @@ def plot_agreement_scatter(df: pd.DataFrame, class_name: str, out_dir: Path, dpi
     plt.ylim(0, max_val)
     plt.legend(title="Method Tracker", bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(out_dir / f"04_{class_name}_Counting_Scatter.png", dpi=dpi, bbox_inches='tight')
+    plt.savefig(out_path, dpi=dpi, bbox_inches='tight')
     plt.close()
 
 def main():
@@ -94,6 +96,7 @@ def main():
     
     gt_folder = CFG['structure']['gt_folder_name']
     gt_file = CFG['structure']['gt_file_name']
+    
     methods = GLOBAL_CFG['structure']['ACQUISITION_MODES'] + ['HDPR_Early', 'HDPR_Late']
     
     slice_folders = [d for d in subset_dir.iterdir() if d.is_dir()]
@@ -124,11 +127,13 @@ def main():
         logging.error("No valid ground truth counting entries located.")
         return
 
+    # Prefixed raw dataframe asset name for ordered sorting
     df = pd.DataFrame(raw_data)
-    df.to_csv(out_dir / "03_Raw_Counting_Data.csv", index=False)
+    df.to_csv(out_dir / "02_03_Raw_Counting_Data.csv", index=False)
 
     # Generate Mathematical Metrics Report
-    with open(out_dir / "00_Counting_Regression_Report.txt", "w") as f:
+    # Prefixed textual summary report for ordered sorting
+    with open(out_dir / "02_00_Counting_Regression_Report.txt", "w") as f:
         f.write(f"--- GLOBAL POPULATION COUNTING ERROR REPORT ---\nProcessed: {slices_processed} validation slices\n\n")
         for cls_name in ["Neuron", "Glia"]:
             f.write(f"=== {cls_name.upper()} REGRESSION METRICS ===\n")
@@ -152,12 +157,16 @@ def main():
         table_rows.append({'Method': method, 'Total Neurons': n_p, 'Neuron Bias': f"{n_bias:+.1f}%", 'Total Glia': g_p, 'Glia Bias': f"{g_bias:+.1f}%"})
         
     df_table = pd.DataFrame(table_rows)
-    df_table.to_csv(out_dir / "01_Population_Totals_Summary.csv", index=False)
-    render_table_image(df_table, f"Global Population Affiliation Matrix ({slices_processed} Slices)", out_dir / "02_Total_Population_Table.png", CFG['parameters']['dpi'])
+    # Prefixed population summary data sheet for ordered sorting
+    df_table.to_csv(out_dir / "02_01_Population_Totals_Summary.csv", index=False)
+    
+    # Prefixed rendered summary table image path for ordered sorting
+    render_table_image(df_table, f"Global Population Affiliation Matrix ({slices_processed} Slices)", out_dir / "02_02_Total_Population_Table.png", CFG['parameters']['dpi'])
 
     # Render Scatter Charts
-    plot_agreement_scatter(df, "Neuron", out_dir, CFG['parameters']['dpi'], CFG['parameters']['font_scale'])
-    plot_agreement_scatter(df, "Glia", out_dir, CFG['parameters']['dpi'], CFG['parameters']['font_scale'])
+    # Prefixed regression scatter figure names for ordered sorting
+    plot_agreement_scatter(df, "Neuron", out_dir / "02_04_Neuron_Counting_Scatter.png", CFG['parameters']['dpi'], CFG['parameters']['font_scale'])
+    plot_agreement_scatter(df, "Glia", out_dir / "02_05_Glia_Counting_Scatter.png", CFG['parameters']['dpi'], CFG['parameters']['font_scale'])
     logging.info(f"--- Population Counting Analytics Complete. Figures deployed to: {out_dir} ---")
 
 if __name__ == '__main__':

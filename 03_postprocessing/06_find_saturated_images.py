@@ -190,7 +190,7 @@ def main():
         slice_name = item['slice']
         score_percent = item['score'] * 100
         
-        slice_folder = out_root / f"{tile_name}_{slice_name}"
+        slice_folder = out_root / slice_name
         slice_folder.mkdir(parents=True, exist_ok=True)
         
         copied = copy_corresponding_files(item['rel_path'], slice_folder)

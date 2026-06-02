@@ -97,10 +97,9 @@ def calculate_metrics(cm: np.ndarray) -> dict:
     return metrics
 
 def plot_combined_confusion_matrix(master_cms: dict, methods: list, out_dir: Path, dpi: int):
-    logging.info("Generating 1xN Combined Confusion Matrix Figure panel with old code_10 sizing format...")
+    logging.info("Generating 1xN Combined Confusion Matrix Figure panel ...")
     vmax = max(int(np.delete(master_cms[m], 8).max()) for m in methods)
     
-    # Restored: Large publication scale dimensions and rigid matrix constraints
     fig, axes = plt.subplots(
         1, len(methods) + 1, 
         figsize=(25, 6.5), 
@@ -116,7 +115,6 @@ def plot_combined_confusion_matrix(master_cms: dict, methods: list, out_dir: Pat
         mask = np.zeros_like(cm, dtype=bool)
         mask[2, 2] = True
         
-        # Restored: Ultra-bold, size 42 annotations inside the heatmap blocks
         sns.heatmap(
             cm, annot=annot_cm, fmt="", cmap="Blues", 
             xticklabels=labels, yticklabels=labels if i == 0 else False,
@@ -128,19 +126,18 @@ def plot_combined_confusion_matrix(master_cms: dict, methods: list, out_dir: Pat
         ax.set_title(method, fontsize=22, fontweight='bold', pad=15)
         ax.set_ylabel("")
         ax.set_xlabel("")
-        # Restored: Size 30 tick labels for maximum readability in compact spaces
         ax.tick_params(axis='both', which='major', labelsize=30)
         if i == 0: 
             plt.setp(ax.get_yticklabels(), rotation=90, va="center")
             
-    # Restored: Large global super labels matching old code layout specifications
     fig.supxlabel('Predicted Class (YOLO Output)', fontsize=36, fontweight='bold', y=-0.06)
     fig.supylabel('True Class (Ground Truth)', fontsize=36, fontweight='bold', x=0.05)
     
     axes[-1].tick_params(labelsize=26)
     axes[-1].set_ylabel('Box Count', fontsize=30, fontweight='bold', rotation=270, labelpad=35)
     
-    plt.savefig(out_dir / "02_Combined_CM_Figure.png", dpi=dpi, bbox_inches='tight')
+    # UPDATED INDEX: Prefixed layout figure path cleanly for ordered sorting
+    plt.savefig(out_dir / "01_02_Combined_CM_Figure.png", dpi=dpi, bbox_inches='tight')
     plt.close()
 
 def main():
@@ -182,7 +179,8 @@ def main():
 
     logging.info(f"Successfully processed {slices_evaluated} slices for Spatial Detection validation.")
     
-    with open(out_dir / "00_Spatial_Detection_Report.txt", "w") as f:
+    # UPDATED INDEX: Prefixed report metrics file cleanly for ordered sorting
+    with open(out_dir / "01_00_Spatial_Detection_Report.txt", "w") as f:
         f.write(f"--- GLOBAL SPATIAL DETECTION PERFORMANCE REPORT ---\nTotal Slices Evaluated: {slices_evaluated}\nMatching IoU Threshold: {iou_thresh}\n\n")
         for method in methods:
             f.write(f"========================================\nMETHOD: {method}\n========================================\n")
@@ -208,7 +206,9 @@ def main():
     for container in ax.containers:
         ax.bar_label(container, fmt='%.3f', padding=15, fontsize=11)
     plt.tight_layout()
-    plt.savefig(out_dir / "01_Macro_F1_Summary_with_Variance.png", dpi=CFG['parameters']['dpi'])
+    
+    # Prefixed macro validation plot filename cleanly for ordered sorting
+    plt.savefig(out_dir / "01_01_Macro_F1_Summary_with_Variance.png", dpi=CFG['parameters']['dpi'])
     plt.close()
     logging.info(f"--- Spatial Detection Validation Complete. Artifacts stored in: {out_dir} ---")
 
