@@ -1,3 +1,10 @@
+When you are using an interactive chat interface like this, the system automatically translates any raw Markdown syntax it receives and renders it into a clean, visual format (with bold headers, styled bullet points, and boxed code blocks) for human readability.
+
+Because I want to give you a single, unified text block that you can copy without any of this automatic rendering getting in the way, I am going to use an escape trick: I am wrapping the entire text inside a raw text block.
+
+When you look at the block below, click the **"Copy"** button in the top corner of the box. It will capture the clean, unrendered plain text code perfectly so you can paste it directly into your GitHub `README.md` editor window.
+
+```text
 # High Dynamic Range Power (HDPR) Light-Sheet Microscopy Post-Processing Pipeline
 
 An enterprise-grade, high-performance computing (HPC) computational suite engineered to automate multi-exposure pixel fusion, deep learning cell mapping (YOLOv8), and multi-expert consensus validation for Light-Sheet Fluorescence Microscopy (LSFM) whole-brain imaging datasets.
@@ -6,54 +13,55 @@ An enterprise-grade, high-performance computing (HPC) computational suite engine
 
 # Table of Contents
 
-1. Global Workspace System Architecture
-2. Operational Core Working Principles
-   - 2.1 The Photometric Bottleneck
-   - 2.2 Mathematical Pixel Fusion Framework
-   - 2.3 Deep Learning Inference Windowing
-   - 2.4 Blind Consensus Graph Mapping
-3. Automated Multi-Step Pipeline Execution Guide
-   - Phase I: Preprocessing & Exposure Fusion
-   - Phase II: Deep Learning Inference
-   - Phase III: Diagnostics & Post-Processing Visualization
-   - Phase IV: Validation & Performance Metrics Suite
-4. Centralized Configuration Reference (`config.yaml`)
-5. Critical Infrastructure Safeguards & Best Practices
-6. Getting Started
+1. [Global Workspace System Architecture](#1-global-workspace-system-architecture)
+2. [Operational Core Working Principles](#2-operational-core-working-principles)
+   - [2.1 The Photometric Bottleneck](#21-the-photometric-bottleneck)
+   - [2.2 Mathematical Pixel Fusion Framework](#22-mathematical-pixel-fusion-framework)
+   - [2.3 Deep Learning Inference Windowing](#23-deep-learning-inference-windowing)
+   - [2.4 Blind Consensus Graph Mapping](#24-blind-consensus-graph-mapping)
+3. [Automated Multi-Step Pipeline Execution Guide](#3-automated-multi-step-pipeline-execution-guide)
+   - [Phase I: Preprocessing & Fusion](#phase-i-preprocessing--exposure-fusion)
+   - [Phase II: Deep Learning Inference](#phase-ii-deep-learning-inference)
+   - [Phase III: Diagnostics & Post-Processing Visualization](#phase-iii-diagnostics--post-processing-visualization)
+   - [Phase IV: Validation & Performance Metrics Suite](#phase-iv-validation--performance-metrics-suite)
+4. [Centralized Configuration Reference (config.yaml)](#4-centralized-configuration-reference-configyaml)
+5. [Critical Infrastructure Safeguards & Best Practices](#5-critical-infrastructure-safeguards--best-practices)
+6. [Getting Started](#6-getting-started)
 
 ---
 
 # 1. Global Workspace System Architecture
 
-The project directory should follow the structure below:
+The project directory must match the structural organization below to guarantee robust cross-module path parsing and unhindered SLURM/LSF cluster execution:
 
 ```text
 lstm_image_fusion/
 │
-├── config.yaml
-├── bsub.sh
-├── .gitignore
-├── directory.txt
+├── config.yaml                     # Single master workspace configuration for all steps
+├── bsub.sh                         # LSF HPC batch cluster submission script template
+├── .gitignore                      # Git exclusion rules for large microscopy TIFF tracks
+├── directory.txt                   # Automated repository structural layout mapping
 │
 ├── 01_preprocessing/
-│   ├── 01_preprocess_clip_scale.py
-│   ├── 02_hdpr_pixel_fusion.py
-│   └── 03_hdpr_stitched_fusion.py
+│   ├── 01_preprocess_clip_scale.py # Multi-channel percentile clipping & 16-to-8-bit scaling
+│   ├── 02_hdpr_pixel_fusion.py     # Multi-power exposure alignment & HDR linear fusion engine
+│   └── 03_hdpr_stitched_fusion.py  # Spatial tile stitching matrix compiler for fused ranges
 │
 ├── 02_yolo_inference/
-│   └── 03_yolo_hdpr_inference.py
+│   └── 03_yolo_hdpr_inference.py   # Multi-track YOLO deep learning batch prediction pipeline
 │
 └── 03_postprocessing/
-    ├── 04_compile_slice_ledger.py
-    ├── 05_generate_grid_figures.py
-    ├── 06_find_saturated_images.py
-    ├── 07_generate_saturated_plots.py
-    ├── 08_generate_specific_slice_grid.py
-    ├── 09_extract_val_set.py
-    ├── 10_fuse_gt_labels.py
-    ├── 11_evaluate_spatial_detection.py
-    ├── 12_evaluate_population_counting.py
-    └── 13_evaluate_golden_subset.py
+    ├── 04_compile_slice_ledger.py  # Master database indexer tracking raw box variance
+    ├── 05_generate_grid_figures.py # Curated 2xN comparative evaluation panel generator
+    ├── 06_find_saturated_images.py # Parallel overexposure matrix miner & validation extractor
+    ├── 07_generate_saturated_plots.py # Publication-ready dashboard for overexposed outliers
+    ├── 08_generate_specific_slice_grid.py # Targeted multi-slice coordinate dashboard generator
+    ├── 09_extract_val_set.py       # Unbiased validation cohort sampler & sandbox builder
+    ├── 10_fuse_gt_labels.py        # Multi-expert consensus ground truth label fusion resolver
+    ├── 11_evaluate_spatial_detection.py # Micro/Macro F1 stats & 1xN combined confusion matrix plot
+    ├── 12_evaluate_population_counting.py # Population density regression tracker & summary table image
+    └── 13_evaluate_golden_subset.py # Top-K peak performance golden cohort miner & visual profiler
+
 ```
 
 ---
@@ -62,138 +70,66 @@ lstm_image_fusion/
 
 ## 2.1 The Photometric Bottleneck
 
-Standard Light-Sheet Fluorescence Microscopy (LSFM) is fundamentally constrained by the tradeoff between underexposure and overexposure caused by tissue scattering and non-uniform fluorophore expression.
+Standard Light-Sheet Fluorescence Microscopy (LSFM) is fundamentally constrained by the tradeoff between underexposure and overexposure caused by tissue scattering and non-uniform fluorophore expression across large whole-organ clearances.
 
 ### Low Laser Power / Short Exposure
 
-- Preserves fine cellular boundaries.
-- Reduces saturation artifacts.
-- Weak fluorescent structures may remain below the detection threshold.
+* Preserves fine cellular boundaries.
+* Reduces saturation artifacts within dense structural cores.
+* Weak fluorescent structures deep within tissues remain below the detection threshold, dropping true positives.
 
 ### High Laser Power / Long Exposure
 
-- Reveals dim cellular structures.
-- Improves visibility of weak fluorescent signals.
-- Saturates bright regions and merges neighboring cells into large pixel blobs that degrade object detection performance.
+* Reveals dim cellular structures and weak fluorescent signals.
+* Improves visibility across heavily scattered regions.
+* Over-saturates bright regions and merges neighboring cells into large, unresolvable pixel blobs that degrade object detection performance.
 
 ---
 
 ## 2.2 Mathematical Pixel Fusion Framework
 
-To overcome the photometric bottleneck, the HDPR workflow acquires multiple images of the same optical slice at different laser powers.
+To overcome the photometric bottleneck, the HDPR workflow acquires multiple sequential physical images of the identical optical slice at changing laser intensities ($P_1, P_2, \dots, P_n$). The fusion module maps these arrays to recover low-signal structures while suppressing overexposure artifacts.
 
-For a two-power acquisition:
+For a two-power acquisition system ($P_{\text{low}}, P_{\text{high}}$) with linear scaling factor $\alpha = P_{\text{high}} / P_{\text{low}}$, a Gaussian soft weighting function is evaluated over non-saturated regions:
 
-```text
-I_low  = low-power image
-I_high = high-power image
+$$W(I) = \exp \left( -\frac{(I - I_{\text{mid}})^2}{2\sigma^2} \right)$$
 
-α = P_high / P_low
-```
+where $I_{\text{mid}}$ is the midpoint intensity and $\sigma$ represents the weighting width parameter. The unified, single 16-bit fused linear high-dynamic range array frame $I_{\text{fused}}(x,y)$ is computed as:
 
-A Gaussian weighting function is applied:
+$$I_{\text{fused}}(x,y) = \begin{cases} 
+\alpha \cdot I_{\text{low}}(x,y) & \text{if } I_{\text{high}}(x,y) \ge \tau \\
+\frac{W(I_{\text{low}}) \cdot (\alpha \cdot I_{\text{low}}(x,y)) + W(I_{\text{high}}) \cdot I_{\text{high}}(x,y)}{W(I_{\text{low}}) + W(I_{\text{high}})} & \text{if } I_{\text{high}}(x,y) < \tau 
+\end{cases}$$
 
-```text
-W(I) = exp(-(I - I_mid)^2 / (2σ²))
-```
-
-where:
-
-```text
-I_mid = midpoint intensity
-σ     = weighting width parameter
-```
-
-The fused image is computed as:
-
-```text
-If I_high(x,y) ≥ τ:
-
-    I_fused(x,y) = α · I_low(x,y)
-
-Else:
-
-    I_fused(x,y) =
-        [ W(I_low) · (α · I_low(x,y))
-          + W(I_high) · I_high(x,y) ]
-        ------------------------------------------------
-             W(I_low) + W(I_high)
-```
-
-where:
-
-```text
-τ = saturation threshold
-```
-
-This process smoothly transitions from the non-saturated low-power exposure to the scaled high-power exposure, producing a unified 16-bit image that preserves information across both dim and bright tissue regions.
+where $\tau$ is the strict saturation threshold (typically between $62000$ and $65200$ for 16-bit CCD cameras). This process smoothly transitions from the non-saturated low-power exposure to the scaled high-power data, outputting a 16-bit array that preserves cellular morphological details across both ultra-dim and highly intense tissue targets.
 
 ---
 
 ## 2.3 Deep Learning Inference Windowing
 
-The object detection pipeline uses a customized YOLOv8 architecture optimized for multi-class cellular detection.
+The object detection pipeline uses a customized YOLOv8 architecture optimized for multi-class cellular object recognition (Class 0: **Neuron**, Class 1: **Glia**).
 
-```text
-Class 0 = Neuron
-Class 1 = Glia
-```
+Because convolutional neural network native layers process 8-bit inputs ($[0, 255]$), 16-bit volumetric arrays must undergo dynamic range compression before inference. Instead of a naive global normalization that clips fine intensity changes, the pipeline applies an adaptive min-max normalization targeted to a rolling $k$-th percentile window of the non-zero background array:
 
-Because YOLO operates on 8-bit inputs (0–255), fused 16-bit images must undergo dynamic range compression before inference.
+$$I_{\text{norm}}(x,y) = \min \left( 255, \max \left( 0, \frac{I_{16}(x,y) - P_{\text{min}}}{P_{\text{max}} - P_{\text{min}}} \times 255 \right) \right)$$
 
-Instead of using global normalization, the pipeline applies adaptive percentile-based min-max normalization:
-
-```text
-I_norm(x,y) =
-    min(
-        255,
-        max(
-            0,
-            ((I16(x,y) - P_min) /
-             (P_max - P_min)) * 255
-        )
-    )
-```
-
-where:
-
-```text
-I16   = fused 16-bit image
-P_min = lower percentile bound
-P_max = upper percentile bound
-```
-
-This adaptive normalization preserves local cellular contrast and fine structural details before tensors are passed into the neural network backbone.
+where $I_{16}$ is the fused 16-bit image, $P_{\text{min}}$ is the lower percentile bound, and $P_{\text{max}}$ is the upper percentile bound. This adaptive normalization preserves local cellular contrast and fine structural details before tensors are passed into the neural network backbone.
 
 ---
 
 ## 2.4 Blind Consensus Graph Mapping
 
-To establish an unbiased validation dataset, multiple experts independently annotate the same image slices.
-
-The consensus engine constructs a graph where:
-
-- Bounding boxes are represented as graph nodes.
-- Edges connect boxes whose overlap exceeds a predefined threshold.
+To establish an unbiased validation dataset, multiple experts independently annotate the same image slices. The consensus engine constructs a spatial graph where bounding boxes are represented as graph nodes, and edges connect boxes whose overlap exceeds a predefined threshold.
 
 Intersection-over-Union (IoU) is computed as:
 
-```text
-IoU =
-Area(B_Expert_A ∩ B_Expert_B)
---------------------------------
-Area(B_Expert_A ∪ B_Expert_B)
-```
+$$\text{IoU} = \frac{\text{Area}(B_{\text{Expert } A} \cap B_{\text{Expert } B})}{\text{Area}(B_{\text{Expert } A} \cup B_{\text{Expert } B})}$$
 
-An edge is created when:
+An edge is created in the spatial graph when the computed overlap meets the barrier criteria:
 
-```text
-IoU ≥ IoU_threshold
-```
+$$\text{IoU} \ge \text{IoU Threshold}$$
 
-Connected components or cliques represent agreed-upon cellular detections.
-
-Class disagreements are resolved using majority voting, producing a consensus ground-truth dataset (`labels_gt`) that minimizes individual annotator bias.
+Connected components or cliques within this spatial graph represent agreed-upon cellular detections. Class disagreements are resolved using majority voting logic, producing a unified consensus ground-truth dataset (`labels_gt`) that minimizes individual annotator bias.
 
 ---
 
@@ -205,31 +141,33 @@ Class disagreements are resolved using majority voting, producing a consensus gr
 
 ### Purpose
 
-Performs percentile clipping and converts 16-bit microscopy images into 8-bit representations.
+Performs multi-channel percentile clipping and converts 16-bit microscopy images into 8-bit representations optimized for standard viewing screens.
 
-### Input
+### Input Structure
 
 ```text
 /raw_root/{ACQUISITION_MODE}/{CHANNEL}/{X_Folder}/{Tile}/*.tiff
+
 ```
 
-### Output
+### Output Structure
 
 ```text
 /stretched_root/{ACQUISITION_MODE}/{CHANNEL}/{X_Folder}/{Tile}/*.tiff
+
 ```
 
 ### Key Parameters
 
 ```yaml
 clip_percentiles: [0.1, 99.9]
+
 ```
 
-### Validation
+### Validation Checkpoints
 
-- Rejects empty image files.
-- Rejects corrupted image files.
-- Logs missing metadata entries.
+* Rejects empty or corrupt image files.
+* Logs missing metadata entries.
 
 ---
 
@@ -237,32 +175,35 @@ clip_percentiles: [0.1, 99.9]
 
 ### Purpose
 
-Performs multi-exposure HDPR image fusion.
+Performs multi-exposure HDPR image fusion by combining low-signal structures and suppressing overexposure artifacts.
 
-### Input
+### Input Structure
 
-Reads multiple acquisition-power directories under:
+Reads multiple acquisition-power directories concurrently under:
 
 ```text
 /raw_root/
+
 ```
 
-### Output
+### Output Structure
 
 ```text
 /raw_hdpr_root/{hdpr_folder}/{CHANNEL}/{X_Folder}/{Tile}/*.tiff
+
 ```
 
 ### Key Parameters
 
 ```yaml
 saturation_threshold: 62000-65200
+
 ```
 
-### Validation
+### Validation Checkpoints
 
-- Verifies coordinate alignment between power levels.
-- Flags stage shifts greater than 0.5 µm.
+* Verifies physical stage coordinate alignment between power levels.
+* Flags stage shifts greater than 0.5 µm as geometric alignment faults.
 
 ---
 
@@ -270,30 +211,30 @@ saturation_threshold: 62000-65200
 
 ### Purpose
 
-Stitches neighboring tiles into whole-organ reconstructions.
+Stitches neighboring physical micro-tiles into seamless macroscopic whole-organ reconstructions.
 
 ### Method
 
-- Normalized cross-correlation
-- Linear alpha blending
+* Normalized cross-correlation for translational overlap matrix computation.
+* Linear alpha blending over physical margins.
 
-### Input
+### Input Structure
 
 ```text
 /Tile_00_00/
 /Tile_00_01/
 /Tile_00_02/
 ...
+
 ```
 
-### Output
+### Output Structure
 
-Whole-organ stitched image volumes.
+Whole-organ stitched macroscopic image volumes.
 
-### Validation
+### Validation Checkpoints
 
-- Detects stitching artifacts.
-- Detects spatial tearing and misalignment.
+* Monitors stitching boundaries to prevent spatial tearing and misalignment.
 
 ---
 
@@ -303,35 +244,40 @@ Whole-organ stitched image volumes.
 
 ### Purpose
 
-Runs YOLOv8 inference on HDPR images.
+Runs multi-track YOLOv8 deep learning batch inference on raw and fused image arrays.
 
-### Input
+### Input Structure
 
-Supports:
+Supports mixed processing tracks of:
 
-- RAW images
-- STRETCHED images
+* `RAW` images
+* `STRETCHED` images
 
-### Output
+### Output Structure
 
 ```text
 /txt_root/{DATASET_TYPE}/{METHOD}/{X_Folder}/{Tile}/{Z_Slice}.txt
+
 ```
 
-### Parameters
+### Key Parameters
 
 ```yaml
 confidence_threshold: 0.25
 nms_iou_threshold: 0.45
+
 ```
 
 ### Output Format
 
+Standardized YOLO text strings:
+
 ```text
 <class_id> <x_center> <y_center> <width> <height>
+
 ```
 
-### Validation
+### Validation Checkpoints
 
 Missing YOLO model weights (`.pt`) trigger immediate script termination.
 
@@ -343,29 +289,31 @@ Missing YOLO model weights (`.pt`) trigger immediate script termination.
 
 ### Purpose
 
-Builds a tabular summary of detection counts across all models and acquisition conditions.
+Builds a master database indexer tracking cell counts and cross-method object detection variance.
 
-### Output
+### Output Structure
+
+Centralized tab-delimited metrics ledger saved to:
 
 ```text
 /output_dir/sample_slice_ledger.txt
+
 ```
 
 ### Classification Rules
 
 ```text
 Consistent Slices:
-
 MaxBoxes - MinBoxes ≤ variance_threshold_consistent
 
 Different Slices:
-
 MaxBoxes - MinBoxes ≥ variance_threshold_different
+
 ```
 
-### Validation
+### Validation Checkpoints
 
-Slices containing fewer than five baseline detections are excluded.
+Slices containing fewer than five baseline detections are excluded to filter out tissue dead zones.
 
 ---
 
@@ -373,18 +321,22 @@ Slices containing fewer than five baseline detections are excluded.
 
 ### Purpose
 
-Generates multi-panel comparison figures.
+Generates high-resolution multi-column 2xN publication panels featuring raw image viewports stacked directly over log-scale pixel intensity histograms.
 
-### Output
+### Output Structure
 
 ```text
 /{Cohort_Class}/{Z_Slice}_{Dataset_Type}.png
+
 ```
 
-### Validation
+### Layout Adjustments
 
-- Automatically skips missing frames.
-- Prevents failures caused by unavailable images.
+Tight grid styling parameters (`rect=[0.01, 0.01, 0.99, 0.94]`, `h_pad=1.8`, `w_pad=0.6`) eliminate wide margins and row overlapping.
+
+### Validation Checkpoints
+
+Automatically safe-skips missing frames without crashing global loop arrays.
 
 ---
 
@@ -392,20 +344,24 @@ Generates multi-panel comparison figures.
 
 ### Purpose
 
-Identifies highly saturated images from the highest laser-power acquisition.
+Parallelized chunk evaluation over raw image folders using an 8x8 matrix sub-sampling stride to isolate highly saturated frames from the highest laser-power acquisition.
 
-### Output
+### Output Structure
+
+Dedicated verification folders named clearly after their coordinate signatures:
 
 ```text
 /{Z_Slice}/
+
 ```
 
-### Parameters
+### Key Parameters
 
 ```text
 search_pool_size
 target_count
 max_per_tile
+
 ```
 
 ---
@@ -414,12 +370,13 @@ max_per_tile
 
 ### Purpose
 
-Generates visual comparison panels for saturated image examples.
+Generates layout-harmonized 2xN visual comparison panels for saturated image examples.
 
-### Output
+### Output Structure
 
 ```text
 /{Z_Slice}_{Dataset_Type}_grid.png
+
 ```
 
 ### Supported Dataset Types
@@ -428,13 +385,13 @@ Generates visual comparison panels for saturated image examples.
 RAW
 STRETCHED
 BOTH
+
 ```
 
 ### Features
 
-- Runtime telemetry
-- Error protection
-- Progress estimation
+* Unbuffered log stream telemetry tracking execution runtime.
+* Progress estimation clock outputs (`Remaining: HH:MM:SS`).
 
 ---
 
@@ -442,17 +399,22 @@ BOTH
 
 ### Purpose
 
-Generates targeted visual inspection grids for user-specified coordinates.
+Generates targeted 2xN comparative visual inspection grids for a manual list of user-specified coordinates.
 
-### Output
+### Output Structure
 
 ```text
 /{Z_Slice}_{Dataset_Type}_specific.png
+
 ```
 
 ### Configuration
 
-Target slices are specified directly in `config.yaml`.
+Target coordinates are specified directly inside the parameters block of `config.yaml`.
+
+### Validation Checkpoints
+
+Integrated upstream file integrity layer skips missing disk frames cleanly instead of rendering empty plots.
 
 ---
 
@@ -462,22 +424,26 @@ Target slices are specified directly in `config.yaml`.
 
 ### Purpose
 
-Creates an unbiased validation subset.
+Creates an unbiased validation cohort subset using a round-robin balancing selection block across physical tiles.
 
 ### Output Structure
+
+Self-contained sandbox folders standardizing output filenames to remove coordinate duplication:
 
 ```text
 /{Z_Slice}/
 ├── images/
 ├── labels/
 └── labels_gt/
+
 ```
 
-### Parameters
+### Key Parameters
 
 ```yaml
 min_detected_cells
 total_slices_to_select
+
 ```
 
 ---
@@ -486,17 +452,18 @@ total_slices_to_select
 
 ### Purpose
 
-Creates consensus annotations from multiple expert label sets.
+Creates a unified consensus validation standard from multiple expert label sets.
 
 ### Method
 
-- IoU-based graph construction
-- Majority-vote class assignment
+* IoU-based spatial graph construction to isolate overlapping bounding boxes.
+* Majority-vote class assignment to resolve inter-operator variation.
 
-### Output
+### Output Structure
 
 ```text
 /{Z_Slice}/labels_gt/HDPR_Late.txt
+
 ```
 
 ---
@@ -505,26 +472,34 @@ Creates consensus annotations from multiple expert label sets.
 
 ### Purpose
 
-Computes spatial detection performance metrics.
+Computes spatial detection performance metrics by comparing model predictions against the consensus ground truth.
 
 ### Metrics
 
-- Precision
-- Recall
-- F1 Score
+* Precision
+* Recall
+* F1 Score (Micro/Macro averages)
 
 ### Outputs
 
 ```text
 01_00_Spatial_Detection_Report.txt
 01_01_Macro_F1_Summary_with_Variance.png
+01_02_Combined_CM_Figure.png
+
 ```
 
-### Parameter
+### Key Parameters
 
 ```yaml
 iou_threshold: 0.45
+dpi: 300
+
 ```
+
+### Layout Adjustments
+
+Heatmap text overlays scale to an ultra-clear size 42 bold font with axis tick labels set to size 30.
 
 ---
 
@@ -532,20 +507,25 @@ iou_threshold: 0.45
 
 ### Purpose
 
-Computes population-counting performance metrics.
+Computes global population-counting performance metrics and density regression tracking.
 
 ### Metrics
 
-- Mean Absolute Error (MAE)
-- Root Mean Squared Error (RMSE)
-- R² Score
-- Bias
+* Mean Absolute Error (MAE)
+* Root Mean Squared Error (RMSE)
+* R² Score
+* Systematic Model Bias Percentage
 
 ### Outputs
 
 ```text
 02_00_Counting_Regression_Report.txt
+02_01_Population_Totals_Summary.csv
+02_02_Total_Population_Table.png
+02_03_Raw_Counting_Data.csv
 02_04_Neuron_Counting_Scatter.png
+02_05_Glia_Counting_Scatter.png
+
 ```
 
 ---
@@ -554,26 +534,33 @@ Computes population-counting performance metrics.
 
 ### Purpose
 
-Identifies the highest-performing validation slices.
+Mines the validation sandboxes to isolate and profile the highest-performing "Golden Cohort" slices based on your prioritized statistical parameter.
 
 ### Outputs
 
 ```text
 03_00_Golden_Cohort_Report.txt
 03_01_Golden_Combined_CM.png
+03_02_Golden_F1_Summary.png
+
 ```
 
-### Parameters
+### Key Parameters
 
 ```yaml
 top_k_limit
 ranking_class
-ranking_metric
+ranking_metric     # Supported keys: Accuracy, Precision, Recall, F1
+
 ```
+
+### Layout Adjustments
+
+Heatmap formatting grid rules are explicitly matched to Step 11 properties (font size 42 bold, tick labels size 30) for visual uniformity in publication.
 
 ---
 
-# 4. Centralized Configuration Reference (`config.yaml`)
+## 4. Centralized Configuration Reference (`config.yaml`)
 
 All scripts read configuration values dynamically from a single master `config.yaml` file located at the repository root.
 
@@ -581,19 +568,16 @@ All scripts read configuration values dynamically from a single master `config.y
 structure:
   CHANNEL: "640nm"
   hdpr_folder: "HDPR"
-
   ACQUISITION_MODES:
     - "power3_exp50"
     - "power15_exp50"
 
 code_05_grid_generation:
   enabled: true
-
   paths:
     ledger_path: "/path/to/ledger/sample_slice_ledger.txt"
     txt_root: "/path/to/output/txts"
     output_dir: "/path/to/output/grid_figures"
-
   parameters:
     target_samples_per_category: 10
     random_seed: 42
@@ -602,12 +586,10 @@ code_05_grid_generation:
 
 code_07_saturated_comparisons:
   enabled: true
-
   paths:
     saturated_root: "/path/to/output/sample_saturated_high"
     txt_root: "/path/to/output/sample_txts"
     output_dir: "/path/to/output/sample_saturated_figs"
-
   parameters:
     dpi: 300
     dataset_type: "BOTH"
@@ -616,11 +598,9 @@ evaluation_suite:
   paths:
     subset_root: "/path/to/output/sample_validation_subset"
     output_dir: "/path/to/output/sample_evaluation_results"
-
   structure:
     gt_folder_name: "labels_gt"
     gt_file_name: "HDPR_Late.txt"
-
   parameters:
     iou_threshold: 0.45
     dpi: 300
@@ -629,112 +609,107 @@ evaluation_suite:
     ranking_method: "HDPR_Late"
     ranking_class: "Neuron"
     ranking_metric: "F1"
+
 ```
 
 ---
 
-# 5. Critical Infrastructure Safeguards & Best Practices
+## 5. Critical Infrastructure Safeguards & Best Practices
 
-## Avoid Hardcoded Paths
+### Avoid Hardcoded Paths
 
-Never hardcode filesystem paths inside Python scripts.
+Never hardcode absolute linux file path pointers inside the individual Python modules. All system directory mappings must be managed through the centralized root `config.yaml` block.
 
-All directory mappings should be managed through:
+### Python Path Resolution
 
-```text
-config.yaml
-```
-
----
-
-## Python Path Resolution
-
-An empty path:
+An empty string configuration assignment:
 
 ```python
 Path("")
+
 ```
 
-resolves to:
+resolves to Python's current working directory indicator:
 
 ```text
 .
+
 ```
 
-Always verify paths before opening files:
+Always verify path handles before executing down-stream file operations:
 
 ```python
 if txt_path != Path(""):
     ...
+
 ```
 
-This prevents errors such as:
+This prevents unhandled folder-reading runtime failures:
 
 ```text
 IsADirectoryError
+
 ```
 
----
+### HPC Logging and Output Buffering
 
-## HPC Logging and Output Buffering
-
-For long-running HPC jobs:
+When scaling scripts across massive volumetric image runs inside shared compute cluster nodes, standard terminal outputs can lag due to network stream buffering. Ensure real-time log tracing and accurate progress updates by utilizing an unbuffered stream block:
 
 ```python
 logging.basicConfig(
     ...,
     stream=sys.stdout
 )
+
 ```
 
-Combined with:
+Combined with explicit log flushes:
 
 ```python
 sys.stdout.flush()
-```
 
-This ensures real-time log updates and accurate progress reporting.
+```
 
 ---
 
 # 6. Getting Started
 
-Clone the repository into your cluster workspace.
+Clone the repository into your cluster workspace environment. Update `config.yaml` with your target image locations, output directories, acquisition channels, laser power settings, and YOLO model paths.
 
-Update `config.yaml` with:
-
-- Input image locations
-- Output directories
-- Acquisition channels
-- Laser power settings
-- YOLO model paths
-
-Run an interactive diagnostic script:
+To execute an interactive diagnostic run on a single login node, call the target module directly:
 
 ```bash
 python3 03_postprocessing/05_generate_grid_figures.py
+
 ```
 
-For batch execution, configure resources in:
+For large-scale pipeline execution via an automated batch scheduler, configure your resource limits inside the HPC shell file:
 
 ```text
 bsub.sh
+
 ```
 
-Then submit:
+Then submit the job wrapper to the cluster:
 
 ```bash
 bsub < bsub.sh
+
 ```
 
 ---
 
 # Pipeline Summary
 
-This pipeline provides a complete workflow for:
+This integrated pipeline provides an automated, end-to-end framework for:
 
-- Multi-exposure HDPR image fusion
-- YOLOv8-based neuron and glia detection
-- Expert-consensus ground-truth generation
-- Quantitative validation and benchmarking
-- Large-scale HPC deployment for whole-brain LSFM datasets
+* Multi-exposure 16-bit linear HDPR image fusion.
+* Adaptive percentile-driven 8-bit dynamic range windowing.
+* YOLOv8-based multi-class neuron and glia whole-brain cell mapping.
+* Graph-theoretic multi-expert consensus ground-truth label generation.
+* Rigorous micro/macro spatial validation and population counting regression benchmarking.
+* Robust, unbuffered telemetry logging optimized for large-scale HPC cluster deployments.
+
+```
+
+```
