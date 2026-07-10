@@ -257,7 +257,7 @@ Supports mixed processing tracks of:
 
 ```yaml
 confidence_threshold: 0.25
-nms_iou_threshold: 0.45
+nms_iou_threshold: 0.50
 
 ```
 
